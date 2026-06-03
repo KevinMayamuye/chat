@@ -1,27 +1,61 @@
-import { useAuth } from "../context/AuthContext";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-const users = [
-  {
-    id: 1,
-    username: "John"
-  },
-  {
-    id: 2,
-    username: "Mary"
-  },
-  {
-    id: 3,
-    username: "Peter"
-  }
-];
+import { useAuth } from "../context/AuthContext";
+import { useChat } from "../context/ChatContext";
+
+import { getUsers } from "../services/userService";
+import { createChat } from "../services/chatService";
 
 const ChatSidebar = () => {
   const { user, logout } = useAuth();
+
+  const { setSelectedChat } = useChat();
+
   const navigate = useNavigate();
+
+  const [users, setUsers] = useState([]);
+
+  useEffect(() => {
+    if (user) {
+      fetchUsers();
+    }
+  }, [user]);
+
+  const fetchUsers = async () => {
+    try {
+      const data = await getUsers();
+
+      const filteredUsers = data.filter(
+        (u) => u._id !== user._id
+      );
+
+      setUsers(filteredUsers);
+
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  const handleUserClick = async (userId) => {
+    try {
+      const chat = await createChat(
+        userId,
+        user.token
+      );
+
+      console.log("Chat opened:", chat);
+
+      setSelectedChat(chat);
+
+    } catch (error) {
+      console.error(error);
+    }
+  };
 
   const handleLogout = () => {
     logout();
+
     navigate("/");
   };
 
@@ -30,12 +64,16 @@ const ChatSidebar = () => {
       <h2>Chats</h2>
 
       <p>Logged in as:</p>
+
       <h3>{user?.username}</h3>
 
       {users.map((chatUser) => (
         <div
-          key={chatUser.id}
+          key={chatUser._id}
           className="user-item"
+          onClick={() =>
+            handleUserClick(chatUser._id)
+          }
         >
           {chatUser.username}
         </div>

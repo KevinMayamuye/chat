@@ -1,34 +1,76 @@
 import { useState } from "react";
 
-const MessageInput = () => {
+import { useAuth } from "../context/AuthContext";
+import { sendMessage } from "../services/messageService";
 
-  const [message, setMessage] = useState("");
+const MessageInput = ({
+  selectedChat,
+  messages,
+  setMessages
+}) => {
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
+  const { user } =
+    useAuth();
 
-    console.log(message);
+  const [
+    content,
+    setContent
+  ] = useState("");
 
-    setMessage("");
+  const handleSubmit =
+    async (e) => {
+
+      e.preventDefault();
+
+      if (!content.trim())
+        return;
+
+      try {
+
+        const message =
+          await sendMessage(
+            selectedChat._id,
+            content,
+            user.token
+          );
+
+        setMessages([
+          ...messages,
+          message
+        ]);
+
+        setContent("");
+
+      } catch (error) {
+
+        console.error(error);
+      }
   };
 
   return (
     <form
       className="message-form"
-      onSubmit={handleSubmit}
+      onSubmit={
+        handleSubmit
+      }
     >
       <input
         type="text"
-        placeholder="Type a message..."
-        value={message}
+        value={content}
+        placeholder="Type message..."
         onChange={(e) =>
-          setMessage(e.target.value)
+          setContent(
+            e.target.value
+          )
         }
       />
 
-      <button type="submit">
+      <button
+        type="submit"
+      >
         Send
       </button>
+
     </form>
   );
 };
