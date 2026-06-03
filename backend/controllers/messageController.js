@@ -1,6 +1,8 @@
 import Message from "../models/Message.js";
 import Chat from "../models/Chat.js";
 
+import { getIO } from "../socket/socketManager.js";
+
 export const sendMessage = async (req, res) => {
   try {
     const { chatId, content } = req.body;
@@ -21,11 +23,43 @@ export const sendMessage = async (req, res) => {
 
     const populatedMessage =
       await Message.findById(message._id)
-        .populate("sender", "username email");
+        .populate(
+          "sender",
+          "username email"
+        );
 
-    res.status(201).json(populatedMessage);
+    // =========================
+    // SOCKET.IO
+    // =========================
+
+    const io = getIO();
+
+    const chat =
+      await Chat.findById(chatId);
+
+    const receiverId =
+      chat.participants.find(
+        (id) =>
+          id.toString() !==
+          req.user._id.toString()
+      );
+
+    if (receiverId) {
+      io.to(receiverId.toString())
+        .emit(
+          "newMessage",
+          populatedMessage
+        );
+    }
+
+    // =========================
+
+    res.status(201).json(
+      populatedMessage
+    );
 
   } catch (error) {
+
     res.status(500).json({
       message: error.message
     });
@@ -42,11 +76,16 @@ export const getMessages = async (req, res) => {
         "sender",
         "username email"
       )
-      .sort({ createdAt: 1 });
+      .sort({
+        createdAt: 1
+      });
 
-    res.status(200).json(messages);
+    res.status(200).json(
+      messages
+    );
 
   } catch (error) {
+
     res.status(500).json({
       message: error.message
     });
