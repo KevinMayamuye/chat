@@ -5,7 +5,7 @@ import { useChat } from "../context/ChatContext";
 
 import { getMessages } from "../services/messageService";
 
-import { socket } from "../../../backend/socket/socket";
+import { socket } from "../socket/socket";
 
 import MessageInput from "./MessageInput";
 
@@ -23,24 +23,19 @@ const ChatWindow = () => {
   }, [selectedChat]);
 
   useEffect(() => {
-    socket.on(
-      "newMessage",
-      (message) => {
+    socket.on("newMessage", (message) => {
+      setMessages((prev) => {
+        const exists = prev.some(
+          (msg) => msg._id === message._id
+        );
 
-        setMessages((prev) => {
-          const exists = prev.some(
-            (msg) => msg._id === message._id
-          );
+        if (exists) {
+          return prev;
+        }
 
-          if (exists) {
-            return prev;
-          }
-
-          return [...prev, message];
-        });
-
-      }
-    );
+        return [...prev, message];
+      });
+    });
 
     return () => {
       socket.off("newMessage");
@@ -78,15 +73,27 @@ const ChatWindow = () => {
 
   return (
     <div className="chat-window">
+
+      <div
+        style={{
+          padding: "15px",
+          borderBottom: "1px solid #ddd",
+          background: "#fff",
+          fontWeight: "bold"
+        }}
+      >
+        Chat
+      </div>
+
       <div className="messages">
         {messages.map((message) => (
           <div
             key={message._id}
-            className={
+            className={`message ${
               message.sender._id === user._id
-                ? "message sent"
-                : "message received"
-            }
+                ? "sent"
+                : "received"
+            }`}
           >
             {message.content}
           </div>

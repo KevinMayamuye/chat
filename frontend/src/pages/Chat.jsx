@@ -1,11 +1,12 @@
 import { useEffect } from "react";
+import "../styles/chat.css";
 
 import ChatSidebar from "../components/ChatSidebar";
 import ChatWindow from "../components/ChatWindow";
 
 import { useAuth } from "../context/AuthContext";
 
-import { socket } from "../../../backend/socket/socket";
+import { socket } from "../socket/socket";
 
 const Chat = () => {
   const { user } = useAuth();
