@@ -1,9 +1,7 @@
 import { io } from "socket.io-client";
 
-const URL =
-  "http://localhost:5000";
+import { API_URL } from "../services/api.js";
 
-export const socket =
-  io(URL, {
-    autoConnect: false,
-  });
+export const socket = io(API_URL, {
+  autoConnect: false,
+});

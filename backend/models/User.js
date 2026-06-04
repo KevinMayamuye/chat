@@ -16,11 +16,23 @@ const userSchema = new mongoose.Schema(
     password: {
       type: String,
       required: true
-    }
+    },
+
+    isOnline: {
+      type: Boolean,
+      default: false,
+    },
+
+    lastSeen: {
+      type: Date,
+      default: null,
+    },
   },
   {
     timestamps: true
   }
 );
+
+userSchema.index({ username: 1 });
 
 export default mongoose.model("User", userSchema);

@@ -1,24 +1,31 @@
 import connectDB from "./config/db.js";
 
 import express from "express";
-import dotenv from "dotenv";
 import cors from "cors";
 
 import http from "http";
 import { Server } from "socket.io";
 
 import { initSocket } from "./socket/socketManager.js";
+import socketAuth from "./socket/socketAuth.js";
+import {
+  setUserOnline,
+  setUserOffline,
+} from "./socket/userStatus.js";
 
 import authRoutes from "./routes/authRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
 import chatRoutes from "./routes/chatRoutes.js";
 import messageRoutes from "./routes/messageRoutes.js";
 
-dotenv.config();
+import { FRONTEND_URL, PORT } from "./config/env.js";
 
 const app = express();
 
-app.use(cors());
+app.use(cors({
+  origin: FRONTEND_URL,
+  credentials: true,
+}));
 app.use(express.json());
 
 // Routes
@@ -31,15 +38,13 @@ app.get("/", (req, res) => {
   res.send("server is running");
 });
 
-const PORT = process.env.PORT || 5000;
-
 // Create HTTP server
 const server = http.createServer(app);
 
 // Create Socket.IO server
 const io = new Server(server, {
   cors: {
-    origin: "http://localhost:5173",
+    origin: FRONTEND_URL,
     credentials: true,
   },
 });
@@ -47,32 +52,28 @@ const io = new Server(server, {
 // Make io available throughout the app
 initSocket(io);
 
-// Socket Events
-io.on("connection", (socket) => {
+io.use(socketAuth);
+
+io.on("connection", async (socket) => {
   console.log("User connected:", socket.id);
 
-  socket.on("setup", (userId) => {
-    socket.join(userId);
+  socket.join(socket.data.userId);
 
-    console.log(
-      `User ${userId} joined room`
-    );
+  await setUserOnline(socket.data.userId);
 
-    socket.emit("connected");
-  });
+  console.log(
+    `User ${socket.data.userId} joined room`
+  );
 
-  socket.on("disconnect", () => {
+  socket.emit("connected");
+
+  socket.on("disconnect", async () => {
     console.log(
       "User disconnected:",
       socket.id
     );
-  });
 
-  socket.on("connect_error", (error) => {
-    console.error(
-      "Socket error:",
-      error.message
-    );
+    await setUserOffline(socket.data.userId);
   });
 });
 

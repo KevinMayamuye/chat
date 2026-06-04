@@ -1,12 +1,12 @@
-import axios from "axios";
+import api from "./api.js";
 
-const API_URL =
-  "http://localhost:5000/api/users";
-
-export const getUsers = async () => {
-
-  const response =
-    await axios.get(API_URL);
+export const searchUsers = async (username) => {
+  const response = await api.get(
+    "/users/search",
+    {
+      params: { username },
+    }
+  );
 
   return response.data;
 };

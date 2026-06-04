@@ -35,6 +35,12 @@ const authMiddleware = async (
         decoded.id
       ).select("-password");
 
+    if (!req.user) {
+      return res.status(401).json({
+        message: "Unauthorized",
+      });
+    }
+
     next();
 
   } catch (error) {

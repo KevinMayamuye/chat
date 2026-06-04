@@ -1,24 +1,16 @@
-import axios from "axios";
+import api from "./api.js";
 
-const API_URL =
-  "http://localhost:5000/api/chats";
+export const getChats = async () => {
+  const response = await api.get("/chats");
 
-export const createChat = async (
-  userId,
-  token
-) => {
+  return response.data;
+};
 
-  const response =
-    await axios.post(
-      API_URL,
-      { userId },
-      {
-        headers: {
-          Authorization:
-            `Bearer ${token}`,
-        },
-      }
-    );
+export const createChat = async (userId) => {
+  const response = await api.post(
+    "/chats",
+    { userId }
+  );
 
   return response.data;
 };

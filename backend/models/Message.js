@@ -25,10 +25,19 @@ const messageSchema = new mongoose.Schema(
         ref: "User",
       },
     ],
+
+    deliveredTo: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
   },
   {
     timestamps: true,
   }
 );
+
+messageSchema.index({ chat: 1, createdAt: 1 });
 
 export default mongoose.model("Message", messageSchema);

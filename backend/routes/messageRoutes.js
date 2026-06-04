@@ -4,7 +4,9 @@ import authMiddleware from "../middleware/authMiddleware.js";
 
 import {
   sendMessage,
-  getMessages
+  getMessages,
+  markChatAsRead,
+  markMessageDelivered,
 } from "../controllers/messageController.js";
 
 const router = express.Router();
@@ -13,6 +15,18 @@ router.post(
   "/",
   authMiddleware,
   sendMessage
+);
+
+router.put(
+  "/read/:chatId",
+  authMiddleware,
+  markChatAsRead
+);
+
+router.put(
+  "/delivered/:messageId",
+  authMiddleware,
+  markMessageDelivered
 );
 
 router.get(

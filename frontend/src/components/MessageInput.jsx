@@ -1,18 +1,12 @@
 import { useState } from "react";
 
-import { useAuth } from "../context/AuthContext";
-
 import { sendMessage } from "../services/messageService";
 
-const MessageInput = ({
-  selectedChat,
+const MessageInput = ({  selectedChat,
   messages,
   setMessages
 }) => {
-  const { user } = useAuth();
-
   const [content, setContent] = useState("");
-
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -21,8 +15,7 @@ const MessageInput = ({
     try {
       const message = await sendMessage(
         selectedChat._id,
-        content,
-        user.token
+        content
       );
 
       setMessages([

@@ -1,47 +1,39 @@
-import axios from "axios";
+import api from "./api.js";
 
-const API_URL =
-  "http://localhost:5000/api/messages";
+export const getMessages = async (chatId) => {
+  const response = await api.get(
+    `/messages/${chatId}`
+  );
 
-export const getMessages = async (
-  chatId,
-  token
+  return response.data;
+};
+
+export const markChatAsRead = async (chatId) => {
+  const response = await api.put(
+    `/messages/read/${chatId}`
+  );
+
+  return response.data;
+};
+
+export const markMessageDelivered = async (
+  messageId
 ) => {
-
-  const response =
-    await axios.get(
-      `${API_URL}/${chatId}`,
-      {
-        headers: {
-          Authorization:
-            `Bearer ${token}`
-        }
-      }
-    );
+  const response = await api.put(
+    `/messages/delivered/${messageId}`
+  );
 
   return response.data;
 };
 
 export const sendMessage = async (
   chatId,
-  content,
-  token
+  content
 ) => {
-
-  const response =
-    await axios.post(
-      API_URL,
-      {
-        chatId,
-        content
-      },
-      {
-        headers: {
-          Authorization:
-            `Bearer ${token}`
-        }
-      }
-    );
+  const response = await api.post(
+    "/messages",
+    { chatId, content }
+  );
 
   return response.data;
 };

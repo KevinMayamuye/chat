@@ -4,29 +4,47 @@ import {
   useEffect,
   useState
 } from "react";
+import { useNavigate } from "react-router-dom";
+
+import { setUnauthorizedHandler } from "../services/api";
+import { socket } from "../socket/socket";
+import { isTokenExpired } from "../utils/token";
 
 const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
-
   const [user, setUser] = useState(null);
 
+  const navigate = useNavigate();
 
-  // Load user from localStorage
   useEffect(() => {
+    setUnauthorizedHandler(() => {
+      socket.disconnect();
+      setUser(null);
+      navigate("/", { replace: true });
+    });
+  }, [navigate]);
 
-    const storedUser = localStorage.getItem("userInfo");
+  useEffect(() => {
+    const storedUser =
+      localStorage.getItem("userInfo");
 
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
+    if (!storedUser) return;
+
+    const parsed = JSON.parse(storedUser);
+
+    if (
+      !parsed.token ||
+      isTokenExpired(parsed.token)
+    ) {
+      localStorage.removeItem("userInfo");
+      return;
     }
 
+    setUser(parsed);
   }, []);
 
-
-  // LOGIN
   const login = (userData) => {
-
     localStorage.setItem(
       "userInfo",
       JSON.stringify(userData)
@@ -35,15 +53,13 @@ export const AuthProvider = ({ children }) => {
     setUser(userData);
   };
 
-
-  // LOGOUT
   const logout = () => {
-
     localStorage.removeItem("userInfo");
+
+    socket.disconnect();
 
     setUser(null);
   };
-
 
   return (
     <AuthContext.Provider
@@ -57,7 +73,6 @@ export const AuthProvider = ({ children }) => {
     </AuthContext.Provider>
   );
 };
-
 
 export const useAuth = () => {
   return useContext(AuthContext);

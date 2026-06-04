@@ -12,14 +12,10 @@ const Chat = () => {
   const { user } = useAuth();
 
   useEffect(() => {
-    if (!user) return;
+    if (!user?.token) return;
 
+    socket.auth = { token: user.token };
     socket.connect();
-
-    socket.emit(
-      "setup",
-      user._id
-    );
 
     socket.on(
       "connected",
