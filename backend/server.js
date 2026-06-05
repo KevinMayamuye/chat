@@ -23,7 +23,7 @@ import { FRONTEND_URL, PORT } from "./config/env.js";
 const app = express();
 
 app.use(cors({
-  origin: FRONTEND_URL,
+  origin: true,
   credentials: true,
 }));
 app.use(express.json());
