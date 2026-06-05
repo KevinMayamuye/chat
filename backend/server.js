@@ -44,7 +44,7 @@ const server = http.createServer(app);
 // Create Socket.IO server
 const io = new Server(server, {
   cors: {
-    origin: FRONTEND_URL,
+    origin: true,
     credentials: true,
   },
 });
