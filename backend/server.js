@@ -23,7 +23,7 @@ import { FRONTEND_URL, PORT } from "./config/env.js";
 const app = express();
 
 app.use(cors({
-  origin: true,
+  origin: true || "http://localhost:5173",
   credentials: true,
 }));
 app.use(express.json());
@@ -44,7 +44,7 @@ const server = http.createServer(app);
 // Create Socket.IO server
 const io = new Server(server, {
   cors: {
-    origin: true,
+    origin: true || "http://localhost:5173",
     credentials: true,
   },
 });
