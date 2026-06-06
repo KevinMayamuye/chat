@@ -2,7 +2,7 @@ import axios from "axios";
 
 export const API_URL =
   import.meta.env.VITE_API_URL ||
-  "http://localhost:5000";
+  "https://chat-production-f570.up.railway.app" || "http://localhost:5000"; // "http://localhost:5000" reminder to self for localhost don't forget to change to this
 
 const api = axios.create({
   baseURL: `${API_URL}/api`,
