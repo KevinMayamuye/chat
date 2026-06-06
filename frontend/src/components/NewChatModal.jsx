@@ -5,6 +5,8 @@ import {
 
 import { searchUsers } from "../services/userService";
 
+import Avatar from "./Avatar";
+
 const NewChatModal = ({
   isOpen,
   onClose,
@@ -138,6 +140,11 @@ const NewChatModal = ({
                   }
                 >
                   <div className="chat-item-name">
+                    <Avatar
+                      user={foundUser}
+                      size="sm"
+                    />
+
                     {foundUser.username}
                   </div>
 

@@ -49,3 +49,92 @@ body {
   text-align: center;
   margin-top: 15px;
 }
+
+.profile-page .profile-form {
+  max-width: 420px;
+}
+
+.profile-avatar-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.register-avatar-section {
+  margin-bottom: 16px;
+}
+
+.profile-file-input {
+  display: none;
+}
+
+.profile-avatar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+}
+
+.profile-btn {
+  width: auto !important;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  background: #0078ff;
+  color: white;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.profile-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.profile-btn-secondary {
+  background: #666;
+}
+
+.profile-field {
+  margin-bottom: 16px;
+}
+
+.profile-field label {
+  display: block;
+  font-size: 12px;
+  color: #888;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.profile-field p {
+  margin: 0;
+  text-align: left;
+  font-size: 16px;
+  color: #333;
+}
+
+.profile-error {
+  color: #c0392b;
+  font-size: 14px;
+  text-align: center;
+  margin: 0 0 12px;
+}
+
+.profile-back-btn {
+  width: 100%;
+  padding: 12px;
+  border: none;
+  background: #333;
+  color: white;
+  cursor: pointer;
+  border-radius: 5px;
+  margin-top: 8px;
+}
+
+.profile-link-row {
+  margin-top: 12px;
+}

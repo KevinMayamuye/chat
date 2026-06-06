@@ -3,6 +3,8 @@ import Chat from "../models/Chat.js";
 
 import { getIO } from "../socket/socketManager.js";
 import { serverError } from "../utils/serverError.js";
+import { getMessageTypeFromMime, getMaxSizeForMime } from "../utils/fileType.js";
+import { uploadFile, deleteFile } from "../utils/gridfs.js";
 
 const isChatParticipant = (chat, userId) =>
   chat.participants.some(
@@ -164,13 +166,19 @@ export const markChatAsRead = async (req, res) => {
 export const sendMessage = async (req, res) => {
   try {
     const { chatId, content } = req.body;
+    const file = req.file;
 
-    const trimmedContent =
-      content?.trim();
+    const trimmedContent = content?.trim() ?? "";
 
-    if (!chatId || !trimmedContent) {
+    if (!chatId) {
       return res.status(400).json({
-        message: "Chat ID and message content are required",
+        message: "Chat ID is required",
+      });
+    }
+
+    if (!file && !trimmedContent) {
+      return res.status(400).json({
+        message: "Message content or file is required",
       });
     }
 
@@ -188,13 +196,88 @@ export const sendMessage = async (req, res) => {
       });
     }
 
-    const message = await Message.create({
+    let attachment = null;
+    let messageType = "text";
+    let uploadedFileId = null;
+
+    if (file) {
+      const maxSize = getMaxSizeForMime(file.mimetype);
+
+      if (file.size > maxSize) {
+        return res.status(400).json({
+          message: "File exceeds maximum allowed size for this type",
+        });
+      }
+
+      const derivedType = getMessageTypeFromMime(
+        file.mimetype
+      );
+
+      if (!derivedType) {
+        return res.status(400).json({
+          message: "File type not allowed",
+        });
+      }
+
+      if (!file.buffer?.length) {
+        return res.status(400).json({
+          message: "No file received. Upload may have failed.",
+        });
+      }
+
+      try {
+        uploadedFileId = await uploadFile(
+          file.buffer,
+          {
+            fileName: file.originalname,
+            mimeType: file.mimetype,
+            chatId,
+            senderId: req.user._id,
+          }
+        );
+      } catch (uploadError) {
+        console.error("GridFS upload failed:", uploadError);
+
+        return res.status(500).json({
+          message: "Failed to store file",
+        });
+      }
+
+      messageType = derivedType;
+      attachment = {
+        fileId: uploadedFileId,
+        fileName: file.originalname,
+        mimeType: file.mimetype,
+        size: file.size,
+      };
+    }
+
+    let message;
+
+    const messagePayload = {
       chat: chatId,
       sender: req.user._id,
+      messageType,
       content: trimmedContent,
       readBy: [req.user._id],
       deliveredTo: [],
-    });
+    };
+
+    if (attachment) {
+      messagePayload.attachment = attachment;
+    }
+
+    try {
+      message = await Message.create(messagePayload);
+    } catch (error) {
+      if (uploadedFileId) {
+        await deleteFile(uploadedFileId).catch(
+          console.error
+        );
+      }
+
+      throw error;
+    }
 
     await Chat.findByIdAndUpdate(
       chatId,
@@ -208,7 +291,7 @@ export const sendMessage = async (req, res) => {
       await Message.findById(message._id)
         .populate(
           "sender",
-          "username email"
+          "username email profilePicture"
         );
 
     const io = getIO();
@@ -269,7 +352,7 @@ export const getMessages = async (req, res) => {
       })
       .populate(
         "sender",
-        "username email"
+        "username email profilePicture"
       )
       .sort({
         createdAt: 1

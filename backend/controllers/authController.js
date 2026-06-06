@@ -71,6 +71,7 @@ export const registerUser = async (req, res) => {
       _id: user._id,
       username: user.username,
       email: user.email,
+      profilePicture: user.profilePicture ?? null,
       token: generateToken(user._id),
     });
 
@@ -115,6 +116,7 @@ export const loginUser = async (req, res) => {
       _id: user._id,
       username: user.username,
       email: user.email,
+      profilePicture: user.profilePicture ?? null,
       token: generateToken(user._id),
     });
 

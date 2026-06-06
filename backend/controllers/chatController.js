@@ -5,7 +5,7 @@ import { serverError } from "../utils/serverError.js";
 import { getUnreadCountsForChats } from "../utils/unreadCount.js";
 
 const participantFields =
-  "username email isOnline lastSeen";
+  "username email isOnline lastSeen profilePicture";
 
 const populateChat = (query) =>
   query
@@ -16,7 +16,7 @@ const populateChat = (query) =>
     .populate({
       path: "lastMessage",
       select:
-        "content createdAt sender readBy deliveredTo",
+        "content messageType attachment createdAt sender readBy deliveredTo",
       populate: {
         path: "sender",
         select: "username",

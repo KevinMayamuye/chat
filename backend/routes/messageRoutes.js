@@ -1,6 +1,7 @@
 import express from "express";
 
 import authMiddleware from "../middleware/authMiddleware.js";
+import { uploadSingleFile } from "../middleware/uploadMiddleware.js";
 
 import {
   sendMessage,
@@ -14,6 +15,7 @@ const router = express.Router();
 router.post(
   "/",
   authMiddleware,
+  uploadSingleFile,
   sendMessage
 );
 

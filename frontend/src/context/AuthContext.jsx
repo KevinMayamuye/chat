@@ -53,6 +53,19 @@ export const AuthProvider = ({ children }) => {
     setUser(userData);
   };
 
+  const updateUser = (partial) => {
+    setUser((prev) => {
+      const updated = { ...prev, ...partial };
+
+      localStorage.setItem(
+        "userInfo",
+        JSON.stringify(updated)
+      );
+
+      return updated;
+    });
+  };
+
   const logout = () => {
     localStorage.removeItem("userInfo");
 
@@ -66,6 +79,7 @@ export const AuthProvider = ({ children }) => {
       value={{
         user,
         login,
+        updateUser,
         logout
       }}
     >

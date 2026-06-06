@@ -20,6 +20,9 @@ import { socket } from "../socket/socket";
 
 import MessageInput from "./MessageInput";
 import MessageTicks from "./MessageTicks";
+import MessageAttachment from "./MessageAttachment";
+import Avatar from "./Avatar";
+import ContactProfileModal from "./ContactProfileModal";
 
 const ChatWindow = () => {
   const { user } = useAuth();
@@ -30,6 +33,8 @@ const ChatWindow = () => {
   const [messages, setMessages] = useState([]);
   const [otherUser, setOtherUser] =
     useState(null);
+  const [showContactProfile, setShowContactProfile] =
+    useState(false);
 
   useEffect(() => {
     if (!selectedChat) {
@@ -301,21 +306,32 @@ const ChatWindow = () => {
           ←
         </button>
 
-        <div>
-          <div className="chat-header-name">
-            {otherUser?.username ?? "Chat"}
-          </div>
+        <button
+          type="button"
+          className="chat-header-profile"
+          onClick={() => setShowContactProfile(true)}
+        >
+          <Avatar
+            user={otherUser}
+            size="md"
+          />
 
-          <div
-            className={`chat-header-status ${
-              otherUser?.isOnline
-                ? "online"
-                : ""
-            }`}
-          >
-            {statusText}
+          <div>
+            <div className="chat-header-name">
+              {otherUser?.username ?? "Chat"}
+            </div>
+
+            <div
+              className={`chat-header-status ${
+                otherUser?.isOnline
+                  ? "online"
+                  : ""
+              }`}
+            >
+              {statusText}
+            </div>
           </div>
-        </div>
+        </button>
       </div>
 
       <div className="messages">
@@ -336,11 +352,23 @@ const ChatWindow = () => {
               key={message._id}
               className={`message ${
                 isSent ? "sent" : "received"
-              }${message.pending ? " pending" : ""}`}
+              }${message.pending ? " pending" : ""}${
+                message.messageType &&
+                message.messageType !== "text"
+                  ? " message-has-attachment"
+                  : ""
+              }`}
             >
-              <div className="message-content">
-                {message.content}
-              </div>
+              {message.messageType &&
+              message.messageType !== "text" ? (
+                <MessageAttachment
+                  message={message}
+                />
+              ) : (
+                <div className="message-content">
+                  {message.content}
+                </div>
+              )}
 
               {isSent && (
                 <div className="message-meta">
@@ -357,6 +385,13 @@ const ChatWindow = () => {
       <MessageInput
         selectedChat={selectedChat}
         setMessages={setMessages}
+      />
+
+      <ContactProfileModal
+        isOpen={showContactProfile}
+        userId={otherUser?._id}
+        initialUser={otherUser}
+        onClose={() => setShowContactProfile(false)}
       />
     </div>
   );

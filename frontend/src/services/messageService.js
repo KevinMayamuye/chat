@@ -37,3 +37,24 @@ export const sendMessage = async (
 
   return response.data;
 };
+
+export const sendMessageWithFile = async (
+  chatId,
+  file,
+  content = ""
+) => {
+  const formData = new FormData();
+  formData.append("chatId", chatId);
+  formData.append("file", file);
+
+  if (content.trim()) {
+    formData.append("content", content.trim());
+  }
+
+  const response = await api.post(
+    "/messages",
+    formData
+  );
+
+  return response.data;
+};

@@ -17,6 +17,7 @@ import authRoutes from "./routes/authRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
 import chatRoutes from "./routes/chatRoutes.js";
 import messageRoutes from "./routes/messageRoutes.js";
+import fileRoutes from "./routes/fileRoutes.js";
 
 import { FRONTEND_URL, PORT } from "./config/env.js";
 
@@ -33,6 +34,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/chats", chatRoutes);
 app.use("/api/messages", messageRoutes);
+app.use("/api/files", fileRoutes);
 
 app.get("/", (req, res) => {
   res.send("server is running");
@@ -77,12 +79,18 @@ io.on("connection", async (socket) => {
   });
 });
 
-// Connect Database
-connectDB();
+// Connect Database, then start server
+const startServer = async () => {
+  await connectDB();
 
-// Start Server
-server.listen(PORT, () => {
-  console.log(
-    `Server is running on port ${PORT}`
-  );
+  server.listen(PORT, () => {
+    console.log(
+      `Server is running on port ${PORT}`
+    );
+  });
+};
+
+startServer().catch((error) => {
+  console.error("Failed to start server:", error);
+  process.exit(1);
 });

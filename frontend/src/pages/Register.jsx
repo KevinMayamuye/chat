@@ -1,8 +1,12 @@
-import { useState, useEffect } from "react";
+import { useRef, useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
+
+import Avatar from "../components/Avatar";
 
 import { useAuth } from "../context/AuthContext";
 import { registerUser } from "../services/authService";
+import { updateMyProfile } from "../services/userService";
+import { resizeImageToBase64 } from "../utils/resizeImage";
 
 import "../styles/auth.css";
 
@@ -12,10 +16,15 @@ const Register = () => {
     email: "",
     password: "",
   });
+  const [avatarPreview, setAvatarPreview] =
+    useState(null);
+  const [avatarFile, setAvatarFile] =
+    useState(null);
 
+  const fileInputRef = useRef(null);
   const navigate = useNavigate();
 
-  const { user, login } = useAuth();
+  const { user, login, updateUser } = useAuth();
 
   useEffect(() => {
     if (user) {
@@ -30,6 +39,14 @@ const Register = () => {
     });
   };
 
+  const handleAvatarChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setAvatarFile(file);
+    setAvatarPreview(URL.createObjectURL(file));
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -37,9 +54,23 @@ const Register = () => {
       const data = await registerUser(formData);
 
       login(data);
+
+      if (avatarFile) {
+        const profilePicture =
+          await resizeImageToBase64(avatarFile);
+
+        const updated = await updateMyProfile({
+          profilePicture,
+        });
+
+        updateUser({
+          profilePicture: updated.profilePicture,
+        });
+      }
     } catch (error) {
       alert(
         error.response?.data?.message ||
+        error.message ||
         "Registration failed"
       );
     }
@@ -52,6 +83,36 @@ const Register = () => {
         onSubmit={handleSubmit}
       >
         <h2>Register</h2>
+
+        <div className="profile-avatar-section register-avatar-section">
+          <Avatar
+            user={{
+              username: formData.username || "?",
+              profilePicture: avatarPreview,
+            }}
+            size="lg"
+          />
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="profile-file-input"
+            onChange={handleAvatarChange}
+          />
+
+          <button
+            type="button"
+            className="profile-btn"
+            onClick={() =>
+              fileInputRef.current?.click()
+            }
+          >
+            {avatarPreview
+              ? "Change photo"
+              : "Add profile photo (optional)"}
+          </button>
+        </div>
 
         <input
           type="text"

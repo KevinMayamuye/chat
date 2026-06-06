@@ -11,9 +11,11 @@ import {
   getMessageStatus,
   updateParticipantStatus,
 } from "../utils/messageStatus";
+import { getMessagePreviewText } from "../utils/messagePreview";
 
 import { socket } from "../socket/socket";
 
+import Avatar from "./Avatar";
 import MessageTicks from "./MessageTicks";
 import NewChatModal from "./NewChatModal";
 
@@ -330,10 +332,17 @@ const ChatSidebar = () => {
         </button>
       </div>
 
-      <p className="sidebar-user">
-        Logged in as{" "}
-        <strong>{user?.username}</strong>
-      </p>
+      <button
+        type="button"
+        className="sidebar-user sidebar-profile-link"
+        onClick={() => navigate("/profile")}
+      >
+        <Avatar user={user} size="sm" />
+        <span>
+          Logged in as{" "}
+          <strong>{user?.username}</strong>
+        </span>
+      </button>
 
       <div className="sidebar-section">
         {chats.length === 0 ? (
@@ -388,6 +397,11 @@ const ChatSidebar = () => {
               >
                 <div className="chat-item-top">
                   <div className="chat-item-name">
+                    <Avatar
+                      user={otherUser}
+                      size="sm"
+                    />
+
                     <span
                       className={`status-dot ${
                         otherUser?.isOnline
@@ -420,7 +434,9 @@ const ChatSidebar = () => {
                     )}
 
                     <span className="preview-text">
-                      {lastMessage.content}
+                      {getMessagePreviewText(
+                        lastMessage
+                      )}
                     </span>
                   </div>
                 )}
