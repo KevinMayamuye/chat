@@ -292,6 +292,15 @@ const ChatWindow = () => {
   return (
     <div className="chat-window">
       <div className="chat-header">
+        <button
+          type="button"
+          className="chat-back-btn"
+          onClick={() => setSelectedChat(null)}
+          aria-label="Back to chats"
+        >
+          ←
+        </button>
+
         <div>
           <div className="chat-header-name">
             {otherUser?.username ?? "Chat"}
@@ -327,7 +336,7 @@ const ChatWindow = () => {
               key={message._id}
               className={`message ${
                 isSent ? "sent" : "received"
-              }`}
+              }${message.pending ? " pending" : ""}`}
             >
               <div className="message-content">
                 {message.content}
@@ -347,7 +356,6 @@ const ChatWindow = () => {
 
       <MessageInput
         selectedChat={selectedChat}
-        messages={messages}
         setMessages={setMessages}
       />
     </div>

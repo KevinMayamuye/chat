@@ -9,12 +9,14 @@ body {
   display: flex;
   justify-content: center;
   align-items: center;
+  padding: 16px;
 }
 
 .auth-form {
   background: white;
   padding: 30px;
-  width: 300px;
+  width: 100%;
+  max-width: 360px;
   border-radius: 8px;
   box-shadow: 0 0 10px rgba(0,0,0,0.1);
 }
@@ -30,6 +32,7 @@ body {
   margin-bottom: 15px;
   border: 1px solid #ccc;
   border-radius: 5px;
+  font-size: 16px;
 }
 
 .auth-form button {
