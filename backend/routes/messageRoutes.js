@@ -8,6 +8,9 @@ import {
   getMessages,
   markChatAsRead,
   markMessageDelivered,
+  updateMessage,
+  deleteMessage,
+  toggleReaction,
 } from "../controllers/messageController.js";
 
 const router = express.Router();
@@ -29,6 +32,24 @@ router.put(
   "/delivered/:messageId",
   authMiddleware,
   markMessageDelivered
+);
+
+router.put(
+  "/:messageId/reaction",
+  authMiddleware,
+  toggleReaction
+);
+
+router.put(
+  "/:messageId",
+  authMiddleware,
+  updateMessage
+);
+
+router.delete(
+  "/:messageId",
+  authMiddleware,
+  deleteMessage
 );
 
 router.get(

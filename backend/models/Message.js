@@ -34,6 +34,34 @@ const messageSchema = new mongoose.Schema(
       size: Number,
     },
 
+    editedAt: {
+      type: Date,
+      default: null,
+    },
+
+    replyTo: {
+      messageId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Message",
+      },
+      senderUsername: String,
+      content: String,
+      messageType: {
+        type: String,
+        default: "text",
+      },
+    },
+
+    reactions: [
+      {
+        user: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User",
+        },
+        emoji: String,
+      },
+    ],
+
     readBy: [
       {
         type: mongoose.Schema.Types.ObjectId,

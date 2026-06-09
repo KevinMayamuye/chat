@@ -16,7 +16,7 @@ const populateChat = (query) =>
     .populate({
       path: "lastMessage",
       select:
-        "content messageType attachment createdAt sender readBy deliveredTo",
+        "content messageType attachment editedAt replyTo reactions createdAt sender readBy deliveredTo",
       populate: {
         path: "sender",
         select: "username",

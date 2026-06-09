@@ -6,10 +6,116 @@ import { serverError } from "../utils/serverError.js";
 import { getMessageTypeFromMime, getMaxSizeForMime } from "../utils/fileType.js";
 import { uploadFile, deleteFile } from "../utils/gridfs.js";
 
+const SENDER_FIELDS =
+  "username email profilePicture";
+
+const EDIT_WINDOW_MS = 15 * 60 * 1000;
+
 const isChatParticipant = (chat, userId) =>
   chat.participants.some(
     (id) => id.toString() === userId.toString()
   );
+
+const populateMessage = (query) =>
+  query
+    .populate("sender", SENDER_FIELDS)
+    .populate("reactions.user", "username");
+
+const notifyOtherParticipant = (
+  chat,
+  currentUserId,
+  event,
+  payload
+) => {
+  const io = getIO();
+
+  const receiverId = chat.participants.find(
+    (id) =>
+      id.toString() !==
+      currentUserId.toString()
+  );
+
+  if (receiverId) {
+    io.to(receiverId.toString()).emit(
+      event,
+      payload
+    );
+  }
+};
+
+const getMessageForUser = async (
+  messageId,
+  userId
+) => {
+  const message = await Message.findById(
+    messageId
+  );
+
+  if (!message) {
+    return { error: { status: 404, message: "Message not found" } };
+  }
+
+  const chat = await Chat.findById(message.chat);
+
+  if (!chat) {
+    return { error: { status: 404, message: "Chat not found" } };
+  }
+
+  if (!isChatParticipant(chat, userId)) {
+    return { error: { status: 403, message: "Forbidden" } };
+  }
+
+  return { message, chat };
+};
+
+const buildReplySnapshot = async (
+  replyToMessageId,
+  chatId
+) => {
+  const original = await Message.findById(
+    replyToMessageId
+  ).populate("sender", "username");
+
+  if (
+    !original ||
+    original.chat.toString() !== chatId.toString()
+  ) {
+    return null;
+  }
+
+  const senderUsername =
+    original.sender?.username ?? "Unknown";
+
+  let preview = original.content?.trim() ?? "";
+
+  if (original.messageType === "image") {
+    preview = "Photo";
+  } else if (original.messageType === "video") {
+    preview = "Video";
+  } else if (original.messageType === "document") {
+    preview =
+      original.attachment?.fileName || "Document";
+  } else if (preview.length > 200) {
+    preview = `${preview.slice(0, 200)}...`;
+  }
+
+  return {
+    messageId: original._id,
+    senderUsername,
+    content: preview,
+    messageType: original.messageType || "text",
+  };
+};
+
+const populateLastMessage = async (messageId) => {
+  if (!messageId) {
+    return null;
+  }
+
+  return populateMessage(
+    Message.findById(messageId)
+  );
+};
 
 const markChatMessagesAsRead = async (
   chatId,
@@ -165,7 +271,8 @@ export const markChatAsRead = async (req, res) => {
 
 export const sendMessage = async (req, res) => {
   try {
-    const { chatId, content } = req.body;
+    const { chatId, content, replyToMessageId } =
+      req.body;
     const file = req.file;
 
     const trimmedContent = content?.trim() ?? "";
@@ -194,6 +301,21 @@ export const sendMessage = async (req, res) => {
       return res.status(403).json({
         message: "Forbidden",
       });
+    }
+
+    let replyTo = null;
+
+    if (replyToMessageId) {
+      replyTo = await buildReplySnapshot(
+        replyToMessageId,
+        chatId
+      );
+
+      if (!replyTo) {
+        return res.status(400).json({
+          message: "Reply message not found in this chat",
+        });
+      }
     }
 
     let attachment = null;
@@ -267,6 +389,10 @@ export const sendMessage = async (req, res) => {
       messagePayload.attachment = attachment;
     }
 
+    if (replyTo) {
+      messagePayload.replyTo = replyTo;
+    }
+
     try {
       message = await Message.create(messagePayload);
     } catch (error) {
@@ -293,29 +419,16 @@ export const sendMessage = async (req, res) => {
       { timestamps: true }
     );
 
-    const populatedMessage =
-      await Message.findById(message._id)
-        .populate(
-          "sender",
-          "username email profilePicture"
-        );
+    const populatedMessage = await populateMessage(
+      Message.findById(message._id)
+    );
 
-    const io = getIO();
-
-    const receiverId =
-      chat.participants.find(
-        (id) =>
-          id.toString() !==
-          req.user._id.toString()
-      );
-
-    if (receiverId) {
-      io.to(receiverId.toString())
-        .emit(
-          "newMessage",
-          populatedMessage
-        );
-    }
+    notifyOtherParticipant(
+      chat,
+      req.user._id,
+      "newMessage",
+      populatedMessage
+    );
 
     res.status(201).json(
       populatedMessage
@@ -328,6 +441,223 @@ export const sendMessage = async (req, res) => {
       });
     }
 
+    return serverError(res, error);
+  }
+};
+
+export const updateMessage = async (req, res) => {
+  try {
+    const { content } = req.body;
+    const trimmedContent = content?.trim();
+
+    if (!trimmedContent) {
+      return res.status(400).json({
+        message: "Message content is required",
+      });
+    }
+
+    const result = await getMessageForUser(
+      req.params.messageId,
+      req.user._id
+    );
+
+    if (result.error) {
+      return res
+        .status(result.error.status)
+        .json({ message: result.error.message });
+    }
+
+    const { message, chat } = result;
+
+    if (
+      message.sender.toString() !==
+      req.user._id.toString()
+    ) {
+      return res.status(403).json({
+        message: "You can only edit your own messages",
+      });
+    }
+
+    if (message.messageType !== "text") {
+      return res.status(400).json({
+        message: "Only text messages can be edited",
+      });
+    }
+
+    const ageMs =
+      Date.now() -
+      new Date(message.createdAt).getTime();
+
+    if (ageMs > EDIT_WINDOW_MS) {
+      return res.status(403).json({
+        message:
+          "Messages can only be edited within 15 minutes of sending",
+      });
+    }
+
+    message.content = trimmedContent;
+    message.editedAt = new Date();
+    await message.save();
+
+    const populatedMessage = await populateMessage(
+      Message.findById(message._id)
+    );
+
+    notifyOtherParticipant(
+      chat,
+      req.user._id,
+      "messageUpdated",
+      populatedMessage
+    );
+
+    res.status(200).json(populatedMessage);
+  } catch (error) {
+    if (error.name === "ValidationError") {
+      return res.status(400).json({
+        message: error.message,
+      });
+    }
+
+    return serverError(res, error);
+  }
+};
+
+export const deleteMessage = async (req, res) => {
+  try {
+    const result = await getMessageForUser(
+      req.params.messageId,
+      req.user._id
+    );
+
+    if (result.error) {
+      return res
+        .status(result.error.status)
+        .json({ message: result.error.message });
+    }
+
+    const { message, chat } = result;
+
+    if (
+      message.sender.toString() !==
+      req.user._id.toString()
+    ) {
+      return res.status(403).json({
+        message: "You can only delete your own messages",
+      });
+    }
+
+    if (message.attachment?.fileId) {
+      await deleteFile(
+        message.attachment.fileId
+      ).catch(console.error);
+    }
+
+    const wasLastMessage =
+      chat.lastMessage?.toString() ===
+      message._id.toString();
+
+    await Message.findByIdAndDelete(message._id);
+
+    let lastMessage = null;
+
+    if (wasLastMessage) {
+      const previous = await Message.findOne({
+        chat: chat._id,
+      }).sort({ createdAt: -1 });
+
+      await Chat.findByIdAndUpdate(
+        chat._id,
+        {
+          lastMessage: previous?._id ?? null,
+        },
+        { timestamps: true }
+      );
+
+      lastMessage = await populateLastMessage(
+        previous?._id
+      );
+    }
+
+    const payload = {
+      messageId: message._id.toString(),
+      chatId: chat._id.toString(),
+      lastMessage,
+    };
+
+    notifyOtherParticipant(
+      chat,
+      req.user._id,
+      "messageDeleted",
+      payload
+    );
+
+    res.status(200).json(payload);
+  } catch (error) {
+    return serverError(res, error);
+  }
+};
+
+export const toggleReaction = async (req, res) => {
+  try {
+    const { emoji } = req.body;
+
+    if (!emoji?.trim()) {
+      return res.status(400).json({
+        message: "Emoji is required",
+      });
+    }
+
+    const result = await getMessageForUser(
+      req.params.messageId,
+      req.user._id
+    );
+
+    if (result.error) {
+      return res
+        .status(result.error.status)
+        .json({ message: result.error.message });
+    }
+
+    const { message, chat } = result;
+    const userId = req.user._id.toString();
+
+    const reactions = message.reactions || [];
+    const existingIndex = reactions.findIndex(
+      (reaction) =>
+        reaction.user.toString() === userId
+    );
+
+    if (existingIndex >= 0) {
+      const existing = reactions[existingIndex];
+
+      if (existing.emoji === emoji) {
+        reactions.splice(existingIndex, 1);
+      } else {
+        reactions[existingIndex].emoji = emoji;
+      }
+    } else {
+      reactions.push({
+        user: req.user._id,
+        emoji,
+      });
+    }
+
+    message.reactions = reactions;
+    await message.save();
+
+    const populatedMessage = await populateMessage(
+      Message.findById(message._id)
+    );
+
+    notifyOtherParticipant(
+      chat,
+      req.user._id,
+      "messageUpdated",
+      populatedMessage
+    );
+
+    res.status(200).json(populatedMessage);
+  } catch (error) {
     return serverError(res, error);
   }
 };
@@ -358,17 +688,13 @@ export const getMessages = async (req, res) => {
       req.user._id
     );
 
-    const messages =
-      await Message.find({
+    const messages = await populateMessage(
+      Message.find({
         chat: req.params.chatId
-      })
-      .populate(
-        "sender",
-        "username email profilePicture"
-      )
-      .sort({
+      }).sort({
         createdAt: 1
-      });
+      })
+    );
 
     res.status(200).json(
       messages
