@@ -276,6 +276,12 @@ export const sendMessage = async (req, res) => {
         );
       }
 
+      if (error.name === "ValidationError") {
+        return res.status(400).json({
+          message: error.message,
+        });
+      }
+
       throw error;
     }
 
@@ -316,6 +322,12 @@ export const sendMessage = async (req, res) => {
     );
 
   } catch (error) {
+    if (error.name === "ValidationError") {
+      return res.status(400).json({
+        message: error.message,
+      });
+    }
+
     return serverError(res, error);
   }
 };

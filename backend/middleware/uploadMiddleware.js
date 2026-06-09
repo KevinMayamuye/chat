@@ -20,6 +20,13 @@ const upload = multer({
 });
 
 export const uploadSingleFile = (req, res, next) => {
+  const contentType = req.headers["content-type"] || "";
+
+  if (!contentType.includes("multipart/form-data")) {
+    next();
+    return;
+  }
+
   upload.single("file")(req, res, (err) => {
     if (!err) {
       next();

@@ -133,6 +133,11 @@ const MessageInput = ({
 
       setContent(trimmedContent);
 
+      alert(
+        error.response?.data?.message ||
+        "Could not send message"
+      );
+
       console.error(error);
     }
   };

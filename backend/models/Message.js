@@ -53,7 +53,7 @@ const messageSchema = new mongoose.Schema(
   }
 );
 
-messageSchema.pre("validate", function validateContent(next) {
+messageSchema.pre("validate", function validateContent() {
   const hasContent = this.content?.trim();
   const hasAttachment = this.attachment?.fileId;
 
@@ -63,8 +63,6 @@ messageSchema.pre("validate", function validateContent(next) {
       "Message must have text content or a file attachment"
     );
   }
-
-  next();
 });
 
 messageSchema.index({ chat: 1, createdAt: 1 });
