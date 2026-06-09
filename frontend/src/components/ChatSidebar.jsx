@@ -205,6 +205,78 @@ const ChatSidebar = () => {
       );
     };
 
+    const handleMessageUpdated = (message) => {
+      const chatId =
+        message.chat?._id ?? message.chat;
+
+      setChats((prev) =>
+        prev.map((chat) => {
+          if (
+            chat._id?.toString() !==
+            chatId?.toString()
+          ) {
+            return chat;
+          }
+
+          const lastId =
+            chat.lastMessage?._id ??
+            chat.lastMessage;
+
+          if (
+            lastId?.toString() !==
+            message._id?.toString()
+          ) {
+            return chat;
+          }
+
+          return {
+            ...chat,
+            lastMessage: message,
+          };
+        })
+      );
+    };
+
+    const handleMessageDeleted = ({
+      messageId,
+      chatId,
+      lastMessage,
+    }) => {
+      setChats((prev) =>
+        prev.map((chat) => {
+          if (
+            chat._id?.toString() !==
+            chatId?.toString()
+          ) {
+            return chat;
+          }
+
+          const lastId =
+            chat.lastMessage?._id ??
+            chat.lastMessage;
+
+          if (
+            lastId?.toString() !==
+            messageId?.toString()
+          ) {
+            return chat;
+          }
+
+          return {
+            ...chat,
+            lastMessage: lastMessage ?? null,
+            updatedAt:
+              lastMessage?.createdAt ||
+              chat.updatedAt,
+          };
+        }).sort(
+          (a, b) =>
+            new Date(b.updatedAt) -
+            new Date(a.updatedAt)
+        )
+      );
+    };
+
     socket.on(
       "userStatusChange",
       handleUserStatus
@@ -217,6 +289,14 @@ const ChatSidebar = () => {
     socket.on(
       "messageDelivered",
       handleMessageDelivered
+    );
+    socket.on(
+      "messageUpdated",
+      handleMessageUpdated
+    );
+    socket.on(
+      "messageDeleted",
+      handleMessageDeleted
     );
 
     return () => {
@@ -235,6 +315,14 @@ const ChatSidebar = () => {
       socket.off(
         "messageDelivered",
         handleMessageDelivered
+      );
+      socket.off(
+        "messageUpdated",
+        handleMessageUpdated
+      );
+      socket.off(
+        "messageDeleted",
+        handleMessageDeleted
       );
     };
   }, [selectedChat, user._id]);
@@ -319,7 +407,7 @@ const ChatSidebar = () => {
   return (
     <div className="sidebar">
       <div className="sidebar-top">
-        <h2>Chats</h2>
+        <h2>Chat</h2>
 
         <button
           type="button"

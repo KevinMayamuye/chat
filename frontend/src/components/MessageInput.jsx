@@ -8,10 +8,16 @@ import EmojiPicker from "emoji-picker-react";
 
 import { useAuth } from "../context/AuthContext";
 import {
+  editMessage,
   sendMessage,
   sendMessageWithFile,
 } from "../services/messageService";
-import { getMessageTypeFromFile } from "../utils/messagePreview";
+import {
+  canEditMessage,
+  getMessageTypeFromFile,
+} from "../utils/messagePreview";
+
+import MessageReplyPreview from "./MessageReplyPreview";
 
 const ACCEPTED_FILES =
   "image/jpeg,image/png,image/gif,image/webp," +
@@ -27,6 +33,11 @@ const ACCEPTED_FILES =
 const MessageInput = ({
   selectedChat,
   setMessages,
+  replyingTo,
+  onCancelReply,
+  editingMessage,
+  onCancelEdit,
+  onMessageUpdated,
 }) => {
   const { user } = useAuth();
   const [content, setContent] = useState("");
@@ -37,6 +48,13 @@ const MessageInput = ({
   const textareaRef = useRef(null);
   const pickerRef = useRef(null);
   const fileInputRef = useRef(null);
+
+  useEffect(() => {
+    if (editingMessage) {
+      setContent(editingMessage.content || "");
+      textareaRef.current?.focus();
+    }
+  }, [editingMessage]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -91,6 +109,9 @@ const MessageInput = ({
   };
 
   const sendTextMessage = async (trimmedContent) => {
+    const replyToMessageId =
+      replyingTo?._id ?? null;
+
     const tempId = `temp-${crypto.randomUUID()}`;
 
     const optimisticMessage = {
@@ -106,9 +127,21 @@ const MessageInput = ({
       readBy: [user._id],
       deliveredTo: [],
       pending: true,
+      ...(replyingTo && {
+        replyTo: {
+          messageId: replyingTo._id,
+          senderUsername:
+            replyingTo.sender?.username ||
+            "Unknown",
+          content: replyingTo.content || "",
+          messageType:
+            replyingTo.messageType || "text",
+        },
+      }),
     };
 
     setContent("");
+    onCancelReply?.();
 
     setMessages((prev) => [
       ...prev,
@@ -118,7 +151,8 @@ const MessageInput = ({
     try {
       const message = await sendMessage(
         selectedChat._id,
-        trimmedContent
+        trimmedContent,
+        replyToMessageId
       );
 
       setMessages((prev) =>
@@ -142,8 +176,44 @@ const MessageInput = ({
     }
   };
 
+  const saveEdit = async (trimmedContent) => {
+    if (!canEditMessage(editingMessage)) {
+      alert(
+        "Messages can only be edited within 15 minutes of sending"
+      );
+      onCancelEdit?.();
+      return;
+    }
+
+    try {
+      const updated = await editMessage(
+        editingMessage._id,
+        trimmedContent
+      );
+
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg._id === updated._id ? updated : msg
+        )
+      );
+
+      onMessageUpdated?.(updated);
+      setContent("");
+      onCancelEdit?.();
+    } catch (error) {
+      alert(
+        error.response?.data?.message ||
+        "Could not edit message"
+      );
+
+      console.error(error);
+    }
+  };
+
   const sendFileMessage = async (file) => {
     const caption = content.trim();
+    const replyToMessageId =
+      replyingTo?._id ?? null;
     const tempId = `temp-${crypto.randomUUID()}`;
     const localPreviewUrl =
       URL.createObjectURL(file);
@@ -169,9 +239,21 @@ const MessageInput = ({
       readBy: [user._id],
       deliveredTo: [],
       pending: true,
+      ...(replyingTo && {
+        replyTo: {
+          messageId: replyingTo._id,
+          senderUsername:
+            replyingTo.sender?.username ||
+            "Unknown",
+          content: replyingTo.content || "",
+          messageType:
+            replyingTo.messageType || "text",
+        },
+      }),
     };
 
     setContent("");
+    onCancelReply?.();
     setUploading(true);
 
     setMessages((prev) => [
@@ -183,7 +265,8 @@ const MessageInput = ({
       const message = await sendMessageWithFile(
         selectedChat._id,
         file,
-        caption
+        caption,
+        replyToMessageId
       );
 
       setMessages((prev) =>
@@ -219,12 +302,19 @@ const MessageInput = ({
     const trimmedContent = content.trim();
     if (!trimmedContent || uploading) return;
 
+    if (editingMessage) {
+      await saveEdit(trimmedContent);
+      return;
+    }
+
     await sendTextMessage(trimmedContent);
   };
 
   const handleFileChange = async (e) => {
     const file = e.target.files?.[0];
-    if (!file || uploading) return;
+    if (!file || uploading || editingMessage) {
+      return;
+    }
 
     await sendFileMessage(file);
   };
@@ -236,76 +326,122 @@ const MessageInput = ({
     }
   };
 
+  const isEditing = Boolean(editingMessage);
+
   return (
     <form
       className="message-form"
       onSubmit={handleSubmit}
     >
-      <div
-        className="message-input-wrap"
-        ref={pickerRef}
-      >
-        <button
-          type="button"
-          className="attach-btn"
-          disabled={uploading}
-          onClick={() =>
-            fileInputRef.current?.click()
-          }
-          aria-label="Attach file"
-        >
-          📎
-        </button>
-
-        <input
-          ref={fileInputRef}
-          type="file"
-          className="message-file-input"
-          accept={ACCEPTED_FILES}
-          onChange={handleFileChange}
+      {replyingTo && !isEditing && (
+        <MessageReplyPreview
+          replyTo={{
+            senderUsername:
+              replyingTo.sender?.username ||
+              "Unknown",
+            content: replyingTo.content,
+            messageType:
+              replyingTo.messageType || "text",
+          }}
+          variant="composer"
+          onCancel={onCancelReply}
         />
+      )}
 
-        <button
-          type="button"
-          className="emoji-btn"
-          disabled={uploading}
-          onClick={() =>
-            setShowEmojiPicker((prev) => !prev)
-          }
-          aria-label="Add emoji"
-        >
-          😊
-        </button>
-
-        {showEmojiPicker && (
-          <div className="emoji-picker-popover">
-            <EmojiPicker
-              onEmojiClick={insertEmoji}
-              width="100%"
-              height={360}
-            />
+      {isEditing && (
+        <div className="composer-reply-bar composer-edit-bar">
+          <div className="composer-reply-content">
+            <span className="composer-reply-label">
+              Editing message
+            </span>
           </div>
-        )}
 
-        <textarea
-          ref={textareaRef}
-          placeholder="Type a message..."
-          value={content}
+          <button
+            type="button"
+            className="composer-reply-cancel"
+            onClick={onCancelEdit}
+            aria-label="Cancel edit"
+          >
+            ×
+          </button>
+        </div>
+      )}
+
+      <div className="message-form-row">
+        <div
+          className="message-input-wrap"
+          ref={pickerRef}
+        >
+          <button
+            type="button"
+            className="attach-btn"
+            disabled={uploading || isEditing}
+            onClick={() =>
+              fileInputRef.current?.click()
+            }
+            aria-label="Attach file"
+          >
+            📎
+          </button>
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            className="message-file-input"
+            accept={ACCEPTED_FILES}
+            onChange={handleFileChange}
+          />
+
+          <button
+            type="button"
+            className="emoji-btn"
+            disabled={uploading}
+            onClick={() =>
+              setShowEmojiPicker((prev) => !prev)
+            }
+            aria-label="Add emoji"
+          >
+            😊
+          </button>
+
+          {showEmojiPicker && (
+            <div className="emoji-picker-popover">
+              <EmojiPicker
+                onEmojiClick={insertEmoji}
+                width="100%"
+                height={360}
+              />
+            </div>
+          )}
+
+          <textarea
+            ref={textareaRef}
+            placeholder={
+              isEditing
+                ? "Edit your message..."
+                : "Type a message..."
+            }
+            value={content}
+            disabled={uploading}
+            onChange={(e) =>
+              setContent(e.target.value)
+            }
+            onKeyDown={handleKeyDown}
+            rows={1}
+          />
+        </div>
+
+        <button
+          type="submit"
           disabled={uploading}
-          onChange={(e) =>
-            setContent(e.target.value)
-          }
-          onKeyDown={handleKeyDown}
-          rows={1}
-        />
+        >
+          {uploading
+            ? "..."
+            : isEditing
+              ? "Save"
+              : "Send"}
+        </button>
       </div>
-
-      <button
-        type="submit"
-        disabled={uploading}
-      >
-        {uploading ? "..." : "Send"}
-      </button>
     </form>
   );
 };

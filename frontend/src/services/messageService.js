@@ -28,11 +28,18 @@ export const markMessageDelivered = async (
 
 export const sendMessage = async (
   chatId,
-  content
+  content,
+  replyToMessageId = null
 ) => {
+  const payload = { chatId, content };
+
+  if (replyToMessageId) {
+    payload.replyToMessageId = replyToMessageId;
+  }
+
   const response = await api.post(
     "/messages",
-    { chatId, content }
+    payload
   );
 
   return response.data;
@@ -41,7 +48,8 @@ export const sendMessage = async (
 export const sendMessageWithFile = async (
   chatId,
   file,
-  content = ""
+  content = "",
+  replyToMessageId = null
 ) => {
   const formData = new FormData();
   formData.append("chatId", chatId);
@@ -51,9 +59,48 @@ export const sendMessageWithFile = async (
     formData.append("content", content.trim());
   }
 
+  if (replyToMessageId) {
+    formData.append(
+      "replyToMessageId",
+      replyToMessageId
+    );
+  }
+
   const response = await api.post(
     "/messages",
     formData
+  );
+
+  return response.data;
+};
+
+export const editMessage = async (
+  messageId,
+  content
+) => {
+  const response = await api.put(
+    `/messages/${messageId}`,
+    { content }
+  );
+
+  return response.data;
+};
+
+export const deleteMessage = async (messageId) => {
+  const response = await api.delete(
+    `/messages/${messageId}`
+  );
+
+  return response.data;
+};
+
+export const toggleReaction = async (
+  messageId,
+  emoji
+) => {
+  const response = await api.put(
+    `/messages/${messageId}/reaction`,
+    { emoji }
   );
 
   return response.data;

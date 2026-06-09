@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { useAuth } from "../context/AuthContext";
 import { useChat } from "../context/ChatContext";
@@ -16,11 +16,16 @@ import {
   updateParticipantStatus,
 } from "../utils/messageStatus";
 
+import { canEditMessage } from "../utils/messagePreview";
+
 import { socket } from "../socket/socket";
 
 import MessageInput from "./MessageInput";
 import MessageTicks from "./MessageTicks";
 import MessageAttachment from "./MessageAttachment";
+import MessageActions from "./MessageActions";
+import MessageReplyPreview from "./MessageReplyPreview";
+import ReactionBar from "./ReactionBar";
 import Avatar from "./Avatar";
 import ContactProfileModal from "./ContactProfileModal";
 
@@ -35,6 +40,133 @@ const ChatWindow = () => {
     useState(null);
   const [showContactProfile, setShowContactProfile] =
     useState(false);
+  const [replyingTo, setReplyingTo] =
+    useState(null);
+  const [editingMessage, setEditingMessage] =
+    useState(null);
+
+  const messagesContainerRef = useRef(null);
+
+  const scrollToBottom = () => {
+    const container = messagesContainerRef.current;
+
+    if (!container) return;
+
+    container.scrollTop = container.scrollHeight;
+  };
+
+  const updateLastMessageIfNeeded = (
+    updatedMessage
+  ) => {
+    setSelectedChat((prev) => {
+      if (!prev) return prev;
+
+      const lastId =
+        prev.lastMessage?._id ??
+        prev.lastMessage;
+
+      if (
+        lastId?.toString() !==
+        updatedMessage._id?.toString()
+      ) {
+        return prev;
+      }
+
+      return {
+        ...prev,
+        lastMessage: updatedMessage,
+      };
+    });
+  };
+
+  const handleReactionUpdate = (updatedMessage) => {
+    setMessages((prev) =>
+      prev.map((msg) =>
+        msg._id === updatedMessage._id
+          ? updatedMessage
+          : msg
+      )
+    );
+
+    updateLastMessageIfNeeded(updatedMessage);
+  };
+
+  const handleMessageDeleted = ({
+    messageId,
+    chatId,
+    lastMessage,
+  }) => {
+    if (
+      chatId?.toString() !==
+      selectedChat?._id?.toString()
+    ) {
+      return;
+    }
+
+    setMessages((prev) =>
+      prev.filter(
+        (msg) =>
+          msg._id?.toString() !==
+          messageId?.toString()
+      )
+    );
+
+    setSelectedChat((prev) => {
+      if (!prev) return prev;
+
+      return {
+        ...prev,
+        lastMessage: lastMessage ?? null,
+      };
+    });
+
+    if (
+      replyingTo?._id?.toString() ===
+      messageId?.toString()
+    ) {
+      setReplyingTo(null);
+    }
+
+    if (
+      editingMessage?._id?.toString() ===
+      messageId?.toString()
+    ) {
+      setEditingMessage(null);
+    }
+  };
+
+  const handleLocalDelete = (result) => {
+    handleMessageDeleted(result);
+  };
+
+  const handleReply = (message) => {
+    setEditingMessage(null);
+    setReplyingTo(message);
+  };
+
+  const handleEdit = (message) => {
+    if (!canEditMessage(message)) {
+      alert(
+        "Messages can only be edited within 15 minutes of sending"
+      );
+      return;
+    }
+
+    setReplyingTo(null);
+    setEditingMessage(message);
+  };
+
+  useEffect(() => {
+    if (!selectedChat || messages.length === 0) {
+      return;
+    }
+
+    const frameId = requestAnimationFrame(() => {
+      scrollToBottom();
+    });
+
+    return () => cancelAnimationFrame(frameId);
+  }, [messages, selectedChat?._id]);
 
   useEffect(() => {
     if (!selectedChat) {
@@ -54,6 +186,8 @@ const ChatWindow = () => {
 
   useEffect(() => {
     setMessages([]);
+    setReplyingTo(null);
+    setEditingMessage(null);
 
     if (!selectedChat) return;
 
@@ -171,6 +305,28 @@ const ChatWindow = () => {
       );
     };
 
+    const handleMessageUpdated = (message) => {
+      const messageChatId =
+        message.chat?._id ?? message.chat;
+
+      if (
+        messageChatId?.toString() !==
+        selectedChat?._id?.toString()
+      ) {
+        return;
+      }
+
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg._id === message._id
+            ? message
+            : msg
+        )
+      );
+
+      updateLastMessageIfNeeded(message);
+    };
+
     socket.on(
       "userStatusChange",
       handleUserStatus
@@ -182,6 +338,14 @@ const ChatWindow = () => {
     socket.on(
       "messageDelivered",
       handleMessageDelivered
+    );
+    socket.on(
+      "messageUpdated",
+      handleMessageUpdated
+    );
+    socket.on(
+      "messageDeleted",
+      handleMessageDeleted
     );
 
     return () => {
@@ -197,12 +361,22 @@ const ChatWindow = () => {
         "messageDelivered",
         handleMessageDelivered
       );
+      socket.off(
+        "messageUpdated",
+        handleMessageUpdated
+      );
+      socket.off(
+        "messageDeleted",
+        handleMessageDeleted
+      );
     };
   }, [
     selectedChat,
     otherUser?._id,
     user._id,
     setSelectedChat,
+    replyingTo?._id,
+    editingMessage?._id,
   ]);
 
   useEffect(() => {
@@ -334,7 +508,10 @@ const ChatWindow = () => {
         </button>
       </div>
 
-      <div className="messages">
+      <div
+        className="messages"
+        ref={messagesContainerRef}
+      >
         {messages.map((message) => {
           const isSent =
             message.sender._id?.toString() ===
@@ -347,35 +524,75 @@ const ChatWindow = () => {
               )
             : null;
 
+          const hasAttachment =
+            message.messageType &&
+            message.messageType !== "text";
+
           return (
             <div
               key={message._id}
               className={`message ${
                 isSent ? "sent" : "received"
               }${message.pending ? " pending" : ""}${
-                message.messageType &&
-                message.messageType !== "text"
+                hasAttachment
                   ? " message-has-attachment"
                   : ""
               }`}
             >
-              {message.messageType &&
-              message.messageType !== "text" ? (
-                <MessageAttachment
-                  message={message}
-                />
-              ) : (
-                <div className="message-content">
-                  {message.content}
-                </div>
-              )}
-
-              {isSent && (
-                <div className="message-meta">
-                  <MessageTicks
-                    status={status}
+              <div className="message-body">
+                {message.replyTo && (
+                  <MessageReplyPreview
+                    replyTo={message.replyTo}
                   />
-                </div>
+                )}
+
+                {hasAttachment ? (
+                  <MessageAttachment
+                    message={message}
+                  />
+                ) : (
+                  <div className="message-content">
+                    {message.content}
+                  </div>
+                )}
+
+                {message.editedAt && (
+                  <span className="message-edited-label">
+                    (edited)
+                  </span>
+                )}
+
+                {isSent && (
+                  <div className="message-meta">
+                    <MessageTicks
+                      status={status}
+                    />
+                  </div>
+                )}
+              </div>
+
+              {!message.pending && (
+                <>
+                  <ReactionBar
+                    message={message}
+                    currentUserId={user._id}
+                    onReactionUpdate={
+                      handleReactionUpdate
+                    }
+                  />
+
+                  <MessageActions
+                    message={message}
+                    currentUserId={user._id}
+                    isSent={isSent}
+                    onReply={handleReply}
+                    onEdit={handleEdit}
+                    onDelete={handleLocalDelete}
+                    onReactionUpdate={
+                      handleReactionUpdate
+                    }
+                  />
+                </>
               )}
             </div>
           );
@@ -385,6 +602,15 @@ const ChatWindow = () => {
       <MessageInput
         selectedChat={selectedChat}
         setMessages={setMessages}
+        replyingTo={replyingTo}
+        onCancelReply={() => setReplyingTo(null)}
+        editingMessage={editingMessage}
+        onCancelEdit={() =>
+          setEditingMessage(null)
+        }
+        onMessageUpdated={
+          updateLastMessageIfNeeded
+        }
       />
 
       <ContactProfileModal
