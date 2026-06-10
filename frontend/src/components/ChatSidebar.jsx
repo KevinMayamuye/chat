@@ -69,7 +69,7 @@ const ChatSidebar = () => {
         message.chat?._id ?? message.chat;
 
       const senderId =
-        message.sender._id ??
+        message.sender?._id ??
         message.sender;
 
       const isIncoming =
@@ -79,6 +79,24 @@ const ChatSidebar = () => {
       const isChatOpen =
         selectedChat?._id?.toString() ===
         chatId?.toString();
+
+      if (isChatOpen) {
+        setSelectedChat((prev) => {
+          if (
+            !prev ||
+            prev._id?.toString() !==
+              chatId?.toString()
+          ) {
+            return prev;
+          }
+
+          return {
+            ...prev,
+            lastMessage: message,
+            updatedAt: message.createdAt,
+          };
+        });
+      }
 
       if (isIncoming && !isChatOpen) {
         markMessageDelivered(message._id).catch(

@@ -14,27 +14,28 @@ const Chat = () => {
   const { selectedChat } = useChat();
 
   useEffect(() => {
-    if (!user?.token) return;
+    if (!user?.token) {
+      socket.disconnect();
+      return;
+    }
 
     socket.auth = { token: user.token };
-    socket.connect();
 
-    socket.on(
-      "connected",
-      () => {
-        console.log(
-          "Socket connected"
-        );
-      }
-    );
+    if (!socket.connected) {
+      socket.connect();
+    }
 
-    return () => {
-      socket.off("connected");
-
-      socket.disconnect();
+    const onConnected = () => {
+      console.log("Socket connected");
     };
 
-  }, [user]);
+    socket.on("connected", onConnected);
+
+    return () => {
+      socket.off("connected", onConnected);
+      socket.disconnect();
+    };
+  }, [user?.token]);
 
   return (
     <div

@@ -35,6 +35,8 @@ const ChatWindow = () => {
   const { selectedChat, setSelectedChat } =
     useChat();
 
+  const selectedChatId = selectedChat?._id;
+
   const [messages, setMessages] = useState([]);
   const [otherUser, setOtherUser] =
     useState(null);
@@ -46,6 +48,17 @@ const ChatWindow = () => {
     useState(null);
 
   const messagesContainerRef = useRef(null);
+  const selectedChatIdRef = useRef(selectedChatId);
+  const replyingToRef = useRef(replyingTo);
+  const editingMessageRef = useRef(editingMessage);
+  const otherUserIdRef = useRef(otherUser?._id);
+  const userIdRef = useRef(user._id);
+
+  selectedChatIdRef.current = selectedChatId;
+  replyingToRef.current = replyingTo;
+  editingMessageRef.current = editingMessage;
+  otherUserIdRef.current = otherUser?._id;
+  userIdRef.current = user._id;
 
   const scrollToBottom = () => {
     const container = messagesContainerRef.current;
@@ -98,7 +111,7 @@ const ChatWindow = () => {
   }) => {
     if (
       chatId?.toString() !==
-      selectedChat?._id?.toString()
+      selectedChatIdRef.current?.toString()
     ) {
       return;
     }
@@ -121,14 +134,14 @@ const ChatWindow = () => {
     });
 
     if (
-      replyingTo?._id?.toString() ===
+      replyingToRef.current?._id?.toString() ===
       messageId?.toString()
     ) {
       setReplyingTo(null);
     }
 
     if (
-      editingMessage?._id?.toString() ===
+      editingMessageRef.current?._id?.toString() ===
       messageId?.toString()
     ) {
       setEditingMessage(null);
@@ -156,6 +169,16 @@ const ChatWindow = () => {
     setEditingMessage(message);
   };
 
+  const fetchMessages = async (chatId) => {
+    try {
+      const data = await getMessages(chatId);
+
+      setMessages(data);
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
   useEffect(() => {
     if (!selectedChat || messages.length === 0) {
       return;
@@ -166,10 +189,10 @@ const ChatWindow = () => {
     });
 
     return () => cancelAnimationFrame(frameId);
-  }, [messages, selectedChat?._id]);
+  }, [messages, selectedChatId]);
 
   useEffect(() => {
-    if (!selectedChat) {
+    if (!selectedChatId || !selectedChat) {
       setOtherUser(null);
       return;
     }
@@ -182,17 +205,17 @@ const ChatWindow = () => {
       );
 
     setOtherUser(participant ?? null);
-  }, [selectedChat, user._id]);
+  }, [selectedChatId, user._id]);
 
   useEffect(() => {
     setMessages([]);
     setReplyingTo(null);
     setEditingMessage(null);
 
-    if (!selectedChat) return;
+    if (!selectedChatId) return;
 
-    fetchMessages();
-  }, [selectedChat]);
+    fetchMessages(selectedChatId);
+  }, [selectedChatId]);
 
   useEffect(() => {
     const handleUserStatus = ({
@@ -202,7 +225,7 @@ const ChatWindow = () => {
     }) => {
       if (
         userId?.toString() !==
-        otherUser?._id?.toString()
+        otherUserIdRef.current?.toString()
       ) {
         return;
       }
@@ -239,7 +262,7 @@ const ChatWindow = () => {
     }) => {
       if (
         chatId?.toString() !==
-        selectedChat?._id?.toString()
+        selectedChatIdRef.current?.toString()
       ) {
         return;
       }
@@ -247,8 +270,8 @@ const ChatWindow = () => {
       setMessages((prev) =>
         prev.map((message) => {
           if (
-            message.sender._id?.toString() !==
-            user._id?.toString()
+            message.sender?._id?.toString() !==
+            userIdRef.current?.toString()
           ) {
             return message;
           }
@@ -280,7 +303,7 @@ const ChatWindow = () => {
     }) => {
       if (
         chatId?.toString() !==
-        selectedChat?._id?.toString()
+        selectedChatIdRef.current?.toString()
       ) {
         return;
       }
@@ -311,7 +334,7 @@ const ChatWindow = () => {
 
       if (
         messageChatId?.toString() !==
-        selectedChat?._id?.toString()
+        selectedChatIdRef.current?.toString()
       ) {
         return;
       }
@@ -324,7 +347,125 @@ const ChatWindow = () => {
         )
       );
 
-      updateLastMessageIfNeeded(message);
+      setSelectedChat((prev) => {
+        if (!prev) return prev;
+
+        const lastId =
+          prev.lastMessage?._id ??
+          prev.lastMessage;
+
+        if (
+          lastId?.toString() !==
+          message._id?.toString()
+        ) {
+          return prev;
+        }
+
+        return {
+          ...prev,
+          lastMessage: message,
+        };
+      });
+    };
+
+    const handleMessageDeletedEvent = (payload) => {
+      const {
+        messageId,
+        chatId,
+        lastMessage,
+      } = payload;
+
+      if (
+        chatId?.toString() !==
+        selectedChatIdRef.current?.toString()
+      ) {
+        return;
+      }
+
+      setMessages((prev) =>
+        prev.filter(
+          (msg) =>
+            msg._id?.toString() !==
+            messageId?.toString()
+        )
+      );
+
+      setSelectedChat((prev) => {
+        if (!prev) return prev;
+
+        return {
+          ...prev,
+          lastMessage: lastMessage ?? null,
+        };
+      });
+
+      if (
+        replyingToRef.current?._id?.toString() ===
+        messageId?.toString()
+      ) {
+        setReplyingTo(null);
+      }
+
+      if (
+        editingMessageRef.current?._id?.toString() ===
+        messageId?.toString()
+      ) {
+        setEditingMessage(null);
+      }
+    };
+
+    const handleNewMessage = async (message) => {
+      const messageChatId =
+        message.chat?._id ?? message.chat;
+
+      if (
+        messageChatId?.toString() !==
+        selectedChatIdRef.current?.toString()
+      ) {
+        return;
+      }
+
+      const isOwnMessage =
+        message.sender?._id?.toString() ===
+        userIdRef.current?.toString();
+
+      if (!isOwnMessage) {
+        try {
+          await markChatAsRead(
+            selectedChatIdRef.current
+          );
+
+          await markMessageDelivered(
+            message._id
+          );
+
+          message = {
+            ...message,
+            readBy: [
+              ...(message.readBy || []),
+              userIdRef.current,
+            ],
+            deliveredTo: [
+              ...(message.deliveredTo || []),
+              userIdRef.current,
+            ],
+          };
+        } catch (error) {
+          console.error(error);
+        }
+      }
+
+      setMessages((prev) => {
+        const exists = prev.some(
+          (msg) => msg._id === message._id
+        );
+
+        if (exists) {
+          return prev;
+        }
+
+        return [...prev, message];
+      });
     };
 
     socket.on(
@@ -345,7 +486,11 @@ const ChatWindow = () => {
     );
     socket.on(
       "messageDeleted",
-      handleMessageDeleted
+      handleMessageDeletedEvent
+    );
+    socket.on(
+      "newMessage",
+      handleNewMessage
     );
 
     return () => {
@@ -367,91 +512,14 @@ const ChatWindow = () => {
       );
       socket.off(
         "messageDeleted",
-        handleMessageDeleted
+        handleMessageDeletedEvent
+      );
+      socket.off(
+        "newMessage",
+        handleNewMessage
       );
     };
-  }, [
-    selectedChat,
-    otherUser?._id,
-    user._id,
-    setSelectedChat,
-    replyingTo?._id,
-    editingMessage?._id,
-  ]);
-
-  useEffect(() => {
-    const handleNewMessage = async (message) => {
-      const messageChatId =
-        message.chat?._id ?? message.chat;
-
-      if (
-        messageChatId?.toString() !==
-        selectedChat?._id?.toString()
-      ) {
-        return;
-      }
-
-      const isOwnMessage =
-        message.sender._id?.toString() ===
-        user._id?.toString();
-
-      if (!isOwnMessage) {
-        try {
-          await markChatAsRead(
-            selectedChat._id
-          );
-
-          await markMessageDelivered(
-            message._id
-          );
-
-          message = {
-            ...message,
-            readBy: [
-              ...(message.readBy || []),
-              user._id,
-            ],
-            deliveredTo: [
-              ...(message.deliveredTo || []),
-              user._id,
-            ],
-          };
-        } catch (error) {
-          console.error(error);
-        }
-      }
-
-      setMessages((prev) => {
-        const exists = prev.some(
-          (msg) => msg._id === message._id
-        );
-
-        if (exists) {
-          return prev;
-        }
-
-        return [...prev, message];
-      });
-    };
-
-    socket.on("newMessage", handleNewMessage);
-
-    return () => {
-      socket.off("newMessage", handleNewMessage);
-    };
-  }, [selectedChat, user._id]);
-
-  const fetchMessages = async () => {
-    try {
-      const data = await getMessages(
-        selectedChat._id
-      );
-
-      setMessages(data);
-    } catch (error) {
-      console.error(error);
-    }
-  };
+  }, [selectedChatId, setSelectedChat]);
 
   if (!selectedChat) {
     return (
@@ -514,7 +582,7 @@ const ChatWindow = () => {
       >
         {messages.map((message) => {
           const isSent =
-            message.sender._id?.toString() ===
+            message.sender?._id?.toString() ===
             user._id?.toString();
 
           const status = isSent
