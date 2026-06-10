@@ -12,19 +12,21 @@ import {
   updateParticipantStatus,
 } from "../utils/messageStatus";
 import { getMessagePreviewText } from "../utils/messagePreview";
+import {
+  getChatTitle,
+  getGroupAvatarUser,
+  getGroupMessageStatus,
+  getOtherParticipant,
+  getSidebarPreviewSender,
+  isGroupChat,
+} from "../utils/chatDisplay";
 
 import { socket } from "../socket/socket";
 
 import Avatar from "./Avatar";
 import MessageTicks from "./MessageTicks";
 import NewChatModal from "./NewChatModal";
-
-const getOtherParticipant = (chat, userId) =>
-  chat.participants?.find(
-    (participant) =>
-      participant._id?.toString() !==
-      userId?.toString()
-  );
+import CreateGroupModal from "./CreateGroupModal";
 
 const ChatSidebar = () => {
   const { user, logout } = useAuth();
@@ -36,6 +38,8 @@ const ChatSidebar = () => {
 
   const [chats, setChats] = useState([]);
   const [showNewChat, setShowNewChat] =
+    useState(false);
+  const [showNewGroup, setShowNewGroup] =
     useState(false);
 
   useEffect(() => {
@@ -402,6 +406,11 @@ const ChatSidebar = () => {
     }
   };
 
+  const handleGroupCreated = (chat) => {
+    setChats((prev) => [chat, ...prev]);
+    setSelectedChat(chat);
+  };
+
   const handleLogout = () => {
     logout();
 
@@ -409,17 +418,19 @@ const ChatSidebar = () => {
   };
 
   const existingChatUserIds = new Set(
-    chats.flatMap((chat) =>
-      chat.participants
-        .filter(
-          (participant) =>
-            participant._id?.toString() !==
-            user._id?.toString()
-        )
-        .map(
-          (participant) => participant._id
-        )
-    )
+    chats
+      .filter((chat) => !isGroupChat(chat))
+      .flatMap((chat) =>
+        chat.participants
+          .filter(
+            (participant) =>
+              participant._id?.toString() !==
+              user._id?.toString()
+          )
+          .map(
+            (participant) => participant._id
+          )
+      )
   );
 
   return (
@@ -427,15 +438,27 @@ const ChatSidebar = () => {
       <div className="sidebar-top">
         <h2>Chat</h2>
 
-        <button
-          type="button"
-          className="new-chat-btn"
-          onClick={() =>
-            setShowNewChat(true)
-          }
-        >
-          + New chat
-        </button>
+        <div className="sidebar-actions">
+          <button
+            type="button"
+            className="new-chat-btn"
+            onClick={() =>
+              setShowNewChat(true)
+            }
+          >
+            + New chat
+          </button>
+
+          <button
+            type="button"
+            className="new-chat-btn new-group-btn"
+            onClick={() =>
+              setShowNewGroup(true)
+            }
+          >
+            + New group
+          </button>
+        </div>
       </div>
 
       <button
@@ -458,11 +481,23 @@ const ChatSidebar = () => {
           </p>
         ) : (
           chats.map((chat) => {
-            const otherUser =
-              getOtherParticipant(
-                chat,
-                user._id
-              );
+            const isGroup = isGroupChat(chat);
+
+            const otherUser = isGroup
+              ? null
+              : getOtherParticipant(
+                  chat,
+                  user._id
+                );
+
+            const chatTitle = getChatTitle(
+              chat,
+              user._id
+            );
+
+            const avatarUser = isGroup
+              ? getGroupAvatarUser(chat)
+              : otherUser;
 
             const isSelected =
               selectedChat?._id?.toString() ===
@@ -480,13 +515,30 @@ const ChatSidebar = () => {
               user._id?.toString();
 
             const lastMessageStatus =
-              isLastMessageMine &&
-              lastMessage
-                ? getMessageStatus(
-                    lastMessage,
-                    otherUser?._id
-                  )
+              isLastMessageMine && lastMessage
+                ? isGroup
+                  ? getGroupMessageStatus(
+                      lastMessage,
+                      chat,
+                      user._id
+                    )
+                  : getMessageStatus(
+                      lastMessage,
+                      otherUser?._id
+                    )
                 : null;
+
+            const previewSender =
+              getSidebarPreviewSender(
+                lastMessage,
+                chat,
+                user._id
+              );
+
+            const previewText =
+              getMessagePreviewText(
+                lastMessage
+              );
 
             const unreadCount =
               chat.unreadCount || 0;
@@ -496,7 +548,7 @@ const ChatSidebar = () => {
                 key={chat._id}
                 className={`chat-item ${
                   isSelected ? "active" : ""
-                }`}
+                }${isGroup ? " group" : ""}`}
                 onClick={() =>
                   handleChatClick(chat)
                 }
@@ -504,20 +556,21 @@ const ChatSidebar = () => {
                 <div className="chat-item-top">
                   <div className="chat-item-name">
                     <Avatar
-                      user={otherUser}
+                      user={avatarUser}
                       size="sm"
                     />
 
-                    <span
-                      className={`status-dot ${
-                        otherUser?.isOnline
-                          ? "online"
-                          : ""
-                      }`}
-                    />
+                    {!isGroup && (
+                      <span
+                        className={`status-dot ${
+                          otherUser?.isOnline
+                            ? "online"
+                            : ""
+                        }`}
+                      />
+                    )}
 
-                    {otherUser?.username ??
-                      "Unknown"}
+                    {chatTitle}
                   </div>
 
                   {unreadCount > 0 && (
@@ -540,9 +593,9 @@ const ChatSidebar = () => {
                     )}
 
                     <span className="preview-text">
-                      {getMessagePreviewText(
-                        lastMessage
-                      )}
+                      {previewSender
+                        ? `${previewSender}: ${previewText}`
+                        : previewText}
                     </span>
                   </div>
                 )}
@@ -568,6 +621,15 @@ const ChatSidebar = () => {
         existingChatUserIds={
           existingChatUserIds
         }
+      />
+      <CreateGroupModal
+        isOpen={showNewGroup}
+        onClose={() =>
+          setShowNewGroup(false)
+        }
+        onGroupCreated={handleGroupCreated}
+        chats={chats}
+        currentUserId={user._id}
       />
     </div>
   );

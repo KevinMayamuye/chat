@@ -19,6 +19,8 @@ import chatRoutes from "./routes/chatRoutes.js";
 import messageRoutes from "./routes/messageRoutes.js";
 import fileRoutes from "./routes/fileRoutes.js";
 
+import { notifyChatParticipants } from "./socket/chatNotify.js";
+
 import Chat from "./models/Chat.js";
 
 import { FRONTEND_URL, PORT } from "./config/env.js";
@@ -94,17 +96,9 @@ io.on("connection", async (socket) => {
         return;
       }
 
-      const otherUserId = chat.participants.find(
-        (id) =>
-          id.toString() !==
-          socket.data.userId.toString()
-      );
-
-      if (!otherUserId) {
-        return;
-      }
-
-      io.to(otherUserId.toString()).emit(
+      notifyChatParticipants(
+        chat,
+        socket.data.userId,
         "userTyping",
         {
           chatId: chatId.toString(),

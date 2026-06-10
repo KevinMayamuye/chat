@@ -49,6 +49,20 @@
   background: #0066db;
 }
 
+.sidebar-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.new-group-btn {
+  background: #25d366;
+}
+
+.new-group-btn:hover {
+  background: #1fb855;
+}
+
 .sidebar-section {
   flex: 1;
   margin-bottom: 16px;
@@ -152,6 +166,108 @@
   color: #c0392b;
 }
 
+.create-group-modal {
+  max-height: min(90vh, 640px);
+  overflow-y: auto;
+}
+
+.modal-section-title {
+  margin: 12px 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #555;
+}
+
+.user-item.selectable {
+  cursor: pointer;
+}
+
+.user-item.selectable.selected {
+  background: #e8f2ff;
+  border: 1px solid #0078ff;
+}
+
+.selected-members {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.member-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border: 1px solid #0078ff;
+  border-radius: 16px;
+  background: #e8f2ff;
+  color: #0078ff;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.create-group-btn {
+  width: 100%;
+  margin-top: 12px;
+  padding: 12px;
+  border: none;
+  border-radius: 8px;
+  background: #0078ff;
+  color: white;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.create-group-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.group-info-modal {
+  max-height: min(80vh, 480px);
+}
+
+.group-info-count {
+  margin: 0 0 12px;
+  font-size: 14px;
+  color: #666;
+}
+
+.group-info-members {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.group-info-member {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.group-info-member-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.group-info-member-name {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.group-info-member-status {
+  font-size: 12px;
+  color: #666;
+}
+
+.group-info-member-status.online {
+  color: #25d366;
+}
+
 .chat-item {
   padding: 12px;
   border-radius: 8px;
@@ -250,6 +366,22 @@
 .message-content {
   margin-bottom: 2px;
   white-space: pre-wrap;
+}
+
+.message-sender-name {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #0078ff;
+}
+
+.message.received .message-sender-name {
+  color: #0078ff;
+}
+
+.message.sent .message-sender-name {
+  color: rgba(255, 255, 255, 0.9);
 }
 
 .message-meta {

@@ -17,6 +17,14 @@ import {
 } from "../utils/messageStatus";
 
 import { canEditMessage } from "../utils/messagePreview";
+import {
+  getChatTitle,
+  getGroupAvatarUser,
+  getGroupMessageStatus,
+  getOtherParticipant,
+  getParticipantById,
+  isGroupChat,
+} from "../utils/chatDisplay";
 
 import { socket } from "../socket/socket";
 
@@ -28,6 +36,7 @@ import MessageReplyPreview from "./MessageReplyPreview";
 import ReactionBar from "./ReactionBar";
 import Avatar from "./Avatar";
 import ContactProfileModal from "./ContactProfileModal";
+import GroupInfoModal from "./GroupInfoModal";
 import TypingIndicator from "./TypingIndicator";
 
 const ChatWindow = () => {
@@ -43,22 +52,28 @@ const ChatWindow = () => {
     useState(null);
   const [showContactProfile, setShowContactProfile] =
     useState(false);
+  const [showGroupInfo, setShowGroupInfo] =
+    useState(false);
   const [replyingTo, setReplyingTo] =
     useState(null);
   const [editingMessage, setEditingMessage] =
     useState(null);
   const [isOtherUserTyping, setIsOtherUserTyping] =
     useState(false);
+  const [typingUserName, setTypingUserName] =
+    useState("");
 
   const messagesContainerRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const selectedChatIdRef = useRef(selectedChatId);
+  const selectedChatRef = useRef(selectedChat);
   const replyingToRef = useRef(replyingTo);
   const editingMessageRef = useRef(editingMessage);
   const otherUserIdRef = useRef(otherUser?._id);
   const userIdRef = useRef(user._id);
 
   selectedChatIdRef.current = selectedChatId;
+  selectedChatRef.current = selectedChat;
   replyingToRef.current = replyingTo;
   editingMessageRef.current = editingMessage;
   otherUserIdRef.current = otherUser?._id;
@@ -200,6 +215,7 @@ const ChatWindow = () => {
 
   useEffect(() => {
     setIsOtherUserTyping(false);
+    setTypingUserName("");
 
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
@@ -213,15 +229,18 @@ const ChatWindow = () => {
       return;
     }
 
-    const participant =
-      selectedChat.participants?.find(
-        (p) =>
-          p._id?.toString() !==
-          user._id?.toString()
-      );
+    if (isGroupChat(selectedChat)) {
+      setOtherUser(null);
+      return;
+    }
+
+    const participant = getOtherParticipant(
+      selectedChat,
+      user._id
+    );
 
     setOtherUser(participant ?? null);
-  }, [selectedChatId, user._id]);
+  }, [selectedChatId, user._id, selectedChat?.isGroup]);
 
   useEffect(() => {
     setMessages([]);
@@ -239,22 +258,32 @@ const ChatWindow = () => {
       isOnline,
       lastSeen,
     }) => {
-      if (
-        userId?.toString() !==
-        otherUserIdRef.current?.toString()
-      ) {
+      const chat = selectedChatRef.current;
+
+      const isParticipant = chat?.participants?.some(
+        (p) =>
+          p._id?.toString() ===
+          userId?.toString()
+      );
+
+      if (!isParticipant) {
         return;
       }
 
-      setOtherUser((prev) =>
-        prev
-          ? {
-              ...prev,
-              isOnline,
-              lastSeen,
-            }
-          : prev
-      );
+      if (
+        userId?.toString() ===
+        otherUserIdRef.current?.toString()
+      ) {
+        setOtherUser((prev) =>
+          prev
+            ? {
+                ...prev,
+                isOnline,
+                lastSeen,
+              }
+            : prev
+        );
+      }
 
       setSelectedChat((prev) => {
         if (!prev) return prev;
@@ -450,8 +479,27 @@ const ChatWindow = () => {
       }
 
       if (
+        userId?.toString() ===
+        userIdRef.current?.toString()
+      ) {
+        return;
+      }
+
+      const chat = selectedChatRef.current;
+      const isParticipant = chat?.participants?.some(
+        (p) =>
+          p._id?.toString() ===
+          userId?.toString()
+      );
+
+      if (!isParticipant) {
+        return;
+      }
+
+      if (
+        !isGroupChat(chat) &&
         userId?.toString() !==
-        otherUserIdRef.current?.toString()
+          otherUserIdRef.current?.toString()
       ) {
         return;
       }
@@ -459,14 +507,24 @@ const ChatWindow = () => {
       clearTypingFallback();
 
       if (isTyping) {
+        const typingUser = getParticipantById(
+          chat,
+          userId
+        );
+
+        setTypingUserName(
+          typingUser?.username ?? "Someone"
+        );
         setIsOtherUserTyping(true);
 
         typingTimeoutRef.current = setTimeout(() => {
           setIsOtherUserTyping(false);
+          setTypingUserName("");
           typingTimeoutRef.current = null;
         }, 3000);
       } else {
         setIsOtherUserTyping(false);
+        setTypingUserName("");
       }
     };
 
@@ -482,6 +540,7 @@ const ChatWindow = () => {
       }
 
       setIsOtherUserTyping(false);
+      setTypingUserName("");
       clearTypingFallback();
 
       const isOwnMessage =
@@ -599,12 +658,35 @@ const ChatWindow = () => {
     );
   }
 
+  const isGroup = isGroupChat(selectedChat);
+  const headerTitle = getChatTitle(
+    selectedChat,
+    user._id
+  );
+  const headerAvatarUser = isGroup
+    ? getGroupAvatarUser(selectedChat)
+    : otherUser;
+  const memberCount =
+    selectedChat.participants?.length ?? 0;
+
   const statusText = isOtherUserTyping
-    ? "typing..."
-    : formatLastSeen(
-        otherUser?.isOnline,
-        otherUser?.lastSeen
-      );
+    ? isGroup && typingUserName
+      ? `${typingUserName} is typing...`
+      : "typing..."
+    : isGroup
+      ? `${memberCount} members`
+      : formatLastSeen(
+          otherUser?.isOnline,
+          otherUser?.lastSeen
+        );
+
+  const handleHeaderClick = () => {
+    if (isGroup) {
+      setShowGroupInfo(true);
+    } else {
+      setShowContactProfile(true);
+    }
+  };
 
   return (
     <div className="chat-window">
@@ -621,23 +703,23 @@ const ChatWindow = () => {
         <button
           type="button"
           className="chat-header-profile"
-          onClick={() => setShowContactProfile(true)}
+          onClick={handleHeaderClick}
         >
           <Avatar
-            user={otherUser}
+            user={headerAvatarUser}
             size="md"
           />
 
           <div>
             <div className="chat-header-name">
-              {otherUser?.username ?? "Chat"}
+              {headerTitle}
             </div>
 
             <div
               className={`chat-header-status ${
                 isOtherUserTyping
                   ? "typing"
-                  : otherUser?.isOnline
+                  : !isGroup && otherUser?.isOnline
                     ? "online"
                     : ""
               }`}
@@ -658,11 +740,21 @@ const ChatWindow = () => {
             user._id?.toString();
 
           const status = isSent
-            ? getMessageStatus(
-                message,
-                otherUser?._id
-              )
+            ? isGroup
+              ? getGroupMessageStatus(
+                  message,
+                  selectedChat,
+                  user._id
+                )
+              : getMessageStatus(
+                  message,
+                  otherUser?._id
+                )
             : null;
+
+          const showSenderName =
+            isGroup &&
+            message.sender?.username;
 
           const hasAttachment =
             message.messageType &&
@@ -680,6 +772,12 @@ const ChatWindow = () => {
               }`}
             >
               <div className="message-body">
+                {showSenderName && !isSent && (
+                  <span className="message-sender-name">
+                    {message.sender.username}
+                  </span>
+                )}
+
                 {message.replyTo && (
                   <MessageReplyPreview
                     replyTo={message.replyTo}
@@ -760,6 +858,12 @@ const ChatWindow = () => {
         userId={otherUser?._id}
         initialUser={otherUser}
         onClose={() => setShowContactProfile(false)}
+      />
+
+      <GroupInfoModal
+        isOpen={showGroupInfo}
+        chat={selectedChat}
+        onClose={() => setShowGroupInfo(false)}
       />
     </div>
   );

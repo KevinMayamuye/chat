@@ -14,3 +14,15 @@ export const createChat = async (userId) => {
 
   return response.data;
 };
+
+export const createGroupChat = async (
+  name,
+  memberIds
+) => {
+  const response = await api.post(
+    "/chats/group",
+    { name, memberIds }
+  );
+
+  return response.data;
+};

@@ -2,6 +2,7 @@ import Message from "../models/Message.js";
 import Chat from "../models/Chat.js";
 
 import { getIO } from "../socket/socketManager.js";
+import { notifyChatParticipants } from "../socket/chatNotify.js";
 import { serverError } from "../utils/serverError.js";
 import { getMessageTypeFromMime, getMaxSizeForMime } from "../utils/fileType.js";
 import { uploadFile, deleteFile } from "../utils/gridfs.js";
@@ -20,28 +21,6 @@ const populateMessage = (query) =>
   query
     .populate("sender", SENDER_FIELDS)
     .populate("reactions.user", "username");
-
-const notifyOtherParticipant = (
-  chat,
-  currentUserId,
-  event,
-  payload
-) => {
-  const io = getIO();
-
-  const receiverId = chat.participants.find(
-    (id) =>
-      id.toString() !==
-      currentUserId.toString()
-  );
-
-  if (receiverId) {
-    io.to(receiverId.toString()).emit(
-      event,
-      payload
-    );
-  }
-};
 
 const getMessageForUser = async (
   messageId,
@@ -423,7 +402,7 @@ export const sendMessage = async (req, res) => {
       Message.findById(message._id)
     );
 
-    notifyOtherParticipant(
+    notifyChatParticipants(
       chat,
       req.user._id,
       "newMessage",
@@ -503,7 +482,7 @@ export const updateMessage = async (req, res) => {
       Message.findById(message._id)
     );
 
-    notifyOtherParticipant(
+    notifyChatParticipants(
       chat,
       req.user._id,
       "messageUpdated",
@@ -584,7 +563,7 @@ export const deleteMessage = async (req, res) => {
       lastMessage,
     };
 
-    notifyOtherParticipant(
+    notifyChatParticipants(
       chat,
       req.user._id,
       "messageDeleted",
@@ -649,7 +628,7 @@ export const toggleReaction = async (req, res) => {
       Message.findById(message._id)
     );
 
-    notifyOtherParticipant(
+    notifyChatParticipants(
       chat,
       req.user._id,
       "messageUpdated",

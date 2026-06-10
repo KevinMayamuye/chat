@@ -14,6 +14,22 @@ const chatSchema = new mongoose.Schema(
       ref: "Message",
       default: null,
     },
+
+    isGroup: {
+      type: Boolean,
+      default: false,
+    },
+
+    name: {
+      type: String,
+      default: null,
+    },
+
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
   },
   {
     timestamps: true,

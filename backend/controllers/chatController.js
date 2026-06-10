@@ -100,6 +100,7 @@ export const createOrGetChat = async (
     }
 
     let chat = await Chat.findOne({
+      isGroup: { $ne: true },
       participants: {
         $all: [currentUser, userId],
         $size: 2,
@@ -127,6 +128,95 @@ export const createOrGetChat = async (
 
     res.status(200).json(chatWithUnread);
 
+  } catch (error) {
+    return serverError(res, error);
+  }
+};
+
+const MAX_GROUP_NAME_LENGTH = 100;
+const MAX_GROUP_MEMBERS = 50;
+const MIN_GROUP_OTHER_MEMBERS = 2;
+
+export const createGroupChat = async (
+  req,
+  res
+) => {
+  try {
+    const { name, memberIds } = req.body;
+    const trimmedName = name?.trim();
+
+    if (!trimmedName) {
+      return res.status(400).json({
+        message: "Group name is required",
+      });
+    }
+
+    if (trimmedName.length > MAX_GROUP_NAME_LENGTH) {
+      return res.status(400).json({
+        message: "Group name is too long",
+      });
+    }
+
+    if (!Array.isArray(memberIds)) {
+      return res.status(400).json({
+        message: "memberIds must be an array",
+      });
+    }
+
+    const currentUserId = req.user._id.toString();
+
+    const uniqueMemberIds = [
+      ...new Set(
+        memberIds.map((id) => id.toString())
+      ),
+    ].filter((id) => id !== currentUserId);
+
+    if (uniqueMemberIds.length < MIN_GROUP_OTHER_MEMBERS) {
+      return res.status(400).json({
+        message:
+          "Select at least 2 other members for a group",
+      });
+    }
+
+    if (uniqueMemberIds.length > MAX_GROUP_MEMBERS - 1) {
+      return res.status(400).json({
+        message: `Groups can have at most ${MAX_GROUP_MEMBERS} members`,
+      });
+    }
+
+    const users = await User.find({
+      _id: { $in: uniqueMemberIds },
+    }).select("_id");
+
+    if (users.length !== uniqueMemberIds.length) {
+      return res.status(400).json({
+        message: "One or more members were not found",
+      });
+    }
+
+    const participants = [
+      req.user._id,
+      ...uniqueMemberIds,
+    ];
+
+    const chat = await Chat.create({
+      participants,
+      isGroup: true,
+      name: trimmedName,
+      createdBy: req.user._id,
+    });
+
+    const populatedChat = await populateChat(
+      Chat.findById(chat._id)
+    );
+
+    const [chatWithUnread] =
+      await attachUnreadCounts(
+        [populatedChat],
+        req.user._id
+      );
+
+    res.status(201).json(chatWithUnread);
   } catch (error) {
     return serverError(res, error);
   }
