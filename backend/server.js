@@ -19,7 +19,14 @@ import chatRoutes from "./routes/chatRoutes.js";
 import messageRoutes from "./routes/messageRoutes.js";
 import fileRoutes from "./routes/fileRoutes.js";
 
+import Chat from "./models/Chat.js";
+
 import { FRONTEND_URL, PORT } from "./config/env.js";
+
+const isChatParticipant = (chat, userId) =>
+  chat.participants.some(
+    (id) => id.toString() === userId.toString()
+  );
 
 const app = express();
 
@@ -68,6 +75,47 @@ io.on("connection", async (socket) => {
   );
 
   socket.emit("connected");
+
+  socket.on("typing", async ({ chatId, isTyping }) => {
+    if (!chatId) {
+      return;
+    }
+
+    try {
+      const chat = await Chat.findById(chatId);
+
+      if (
+        !chat ||
+        !isChatParticipant(
+          chat,
+          socket.data.userId
+        )
+      ) {
+        return;
+      }
+
+      const otherUserId = chat.participants.find(
+        (id) =>
+          id.toString() !==
+          socket.data.userId.toString()
+      );
+
+      if (!otherUserId) {
+        return;
+      }
+
+      io.to(otherUserId.toString()).emit(
+        "userTyping",
+        {
+          chatId: chatId.toString(),
+          userId: socket.data.userId,
+          isTyping: Boolean(isTyping),
+        }
+      );
+    } catch (error) {
+      console.error("Typing relay failed:", error);
+    }
+  });
 
   socket.on("disconnect", async () => {
     console.log(

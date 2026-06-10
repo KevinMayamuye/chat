@@ -17,7 +17,11 @@ import {
   getMessageTypeFromFile,
 } from "../utils/messagePreview";
 
+import { socket } from "../socket/socket";
+
 import MessageReplyPreview from "./MessageReplyPreview";
+
+const TYPING_IDLE_MS = 2000;
 
 const ACCEPTED_FILES =
   "image/jpeg,image/png,image/gif,image/webp," +
@@ -48,9 +52,75 @@ const MessageInput = ({
   const textareaRef = useRef(null);
   const pickerRef = useRef(null);
   const fileInputRef = useRef(null);
+  const typingIdleTimerRef = useRef(null);
+  const isTypingActiveRef = useRef(false);
+  const chatIdRef = useRef(selectedChat?._id);
+  const editingMessageRef = useRef(editingMessage);
+
+  chatIdRef.current = selectedChat?._id;
+  editingMessageRef.current = editingMessage;
+
+  const clearTypingIdleTimer = () => {
+    if (typingIdleTimerRef.current) {
+      clearTimeout(typingIdleTimerRef.current);
+      typingIdleTimerRef.current = null;
+    }
+  };
+
+  const emitTyping = (isTyping) => {
+    const chatId = chatIdRef.current;
+
+    if (!chatId) {
+      return;
+    }
+
+    if (isTyping && editingMessageRef.current) {
+      return;
+    }
+
+    if (!socket.connected) {
+      return;
+    }
+
+    socket.emit("typing", { chatId, isTyping });
+  };
+
+  const stopTyping = () => {
+    clearTypingIdleTimer();
+
+    if (isTypingActiveRef.current) {
+      isTypingActiveRef.current = false;
+      emitTyping(false);
+    }
+  };
+
+  const handleTypingActivity = (value) => {
+    if (editingMessageRef.current) {
+      return;
+    }
+
+    const trimmed = value.trim();
+
+    if (!trimmed) {
+      stopTyping();
+      return;
+    }
+
+    if (!isTypingActiveRef.current) {
+      isTypingActiveRef.current = true;
+      emitTyping(true);
+    }
+
+    clearTypingIdleTimer();
+
+    typingIdleTimerRef.current = setTimeout(() => {
+      stopTyping();
+    }, TYPING_IDLE_MS);
+  };
 
   useEffect(() => {
     if (editingMessage) {
+      stopTyping();
       setContent(editingMessage.content || "");
       textareaRef.current?.focus();
     }
@@ -81,23 +151,37 @@ const MessageInput = ({
     };
   }, [showEmojiPicker]);
 
+  useEffect(() => {
+    return () => {
+      stopTyping();
+    };
+  }, [selectedChat?._id]);
+
   const insertEmoji = (emojiData) => {
     const textarea = textareaRef.current;
     const emoji = emojiData.emoji;
 
     if (!textarea) {
-      setContent((prev) => prev + emoji);
+      setContent((prev) => {
+        const next = prev + emoji;
+        handleTypingActivity(next);
+        return next;
+      });
       return;
     }
 
     const start = textarea.selectionStart;
     const end = textarea.selectionEnd;
 
-    setContent((prev) =>
-      prev.slice(0, start) +
+    setContent((prev) => {
+      const next =
+        prev.slice(0, start) +
         emoji +
-        prev.slice(end)
-    );
+        prev.slice(end);
+
+      handleTypingActivity(next);
+      return next;
+    });
 
     requestAnimationFrame(() => {
       textarea.focus();
@@ -140,6 +224,7 @@ const MessageInput = ({
       }),
     };
 
+    stopTyping();
     setContent("");
     onCancelReply?.();
 
@@ -252,6 +337,7 @@ const MessageInput = ({
       }),
     };
 
+    stopTyping();
     setContent("");
     onCancelReply?.();
     setUploading(true);
@@ -327,6 +413,12 @@ const MessageInput = ({
   };
 
   const isEditing = Boolean(editingMessage);
+
+  const handleContentChange = (e) => {
+    const value = e.target.value;
+    setContent(value);
+    handleTypingActivity(value);
+  };
 
   return (
     <form
@@ -423,9 +515,8 @@ const MessageInput = ({
             }
             value={content}
             disabled={uploading}
-            onChange={(e) =>
-              setContent(e.target.value)
-            }
+            onChange={handleContentChange}
+            onBlur={stopTyping}
             onKeyDown={handleKeyDown}
             rows={1}
           />

@@ -28,6 +28,7 @@ import MessageReplyPreview from "./MessageReplyPreview";
 import ReactionBar from "./ReactionBar";
 import Avatar from "./Avatar";
 import ContactProfileModal from "./ContactProfileModal";
+import TypingIndicator from "./TypingIndicator";
 
 const ChatWindow = () => {
   const { user } = useAuth();
@@ -46,8 +47,11 @@ const ChatWindow = () => {
     useState(null);
   const [editingMessage, setEditingMessage] =
     useState(null);
+  const [isOtherUserTyping, setIsOtherUserTyping] =
+    useState(false);
 
   const messagesContainerRef = useRef(null);
+  const typingTimeoutRef = useRef(null);
   const selectedChatIdRef = useRef(selectedChatId);
   const replyingToRef = useRef(replyingTo);
   const editingMessageRef = useRef(editingMessage);
@@ -180,7 +184,10 @@ const ChatWindow = () => {
   };
 
   useEffect(() => {
-    if (!selectedChat || messages.length === 0) {
+    if (
+      !selectedChat ||
+      (messages.length === 0 && !isOtherUserTyping)
+    ) {
       return;
     }
 
@@ -189,7 +196,16 @@ const ChatWindow = () => {
     });
 
     return () => cancelAnimationFrame(frameId);
-  }, [messages, selectedChatId]);
+  }, [messages, selectedChatId, isOtherUserTyping]);
+
+  useEffect(() => {
+    setIsOtherUserTyping(false);
+
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = null;
+    }
+  }, [selectedChatId]);
 
   useEffect(() => {
     if (!selectedChatId || !selectedChat) {
@@ -414,6 +430,46 @@ const ChatWindow = () => {
       }
     };
 
+    const clearTypingFallback = () => {
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+        typingTimeoutRef.current = null;
+      }
+    };
+
+    const handleUserTyping = ({
+      chatId,
+      userId,
+      isTyping,
+    }) => {
+      if (
+        chatId?.toString() !==
+        selectedChatIdRef.current?.toString()
+      ) {
+        return;
+      }
+
+      if (
+        userId?.toString() !==
+        otherUserIdRef.current?.toString()
+      ) {
+        return;
+      }
+
+      clearTypingFallback();
+
+      if (isTyping) {
+        setIsOtherUserTyping(true);
+
+        typingTimeoutRef.current = setTimeout(() => {
+          setIsOtherUserTyping(false);
+          typingTimeoutRef.current = null;
+        }, 3000);
+      } else {
+        setIsOtherUserTyping(false);
+      }
+    };
+
     const handleNewMessage = async (message) => {
       const messageChatId =
         message.chat?._id ?? message.chat;
@@ -424,6 +480,9 @@ const ChatWindow = () => {
       ) {
         return;
       }
+
+      setIsOtherUserTyping(false);
+      clearTypingFallback();
 
       const isOwnMessage =
         message.sender?._id?.toString() ===
@@ -492,8 +551,13 @@ const ChatWindow = () => {
       "newMessage",
       handleNewMessage
     );
+    socket.on(
+      "userTyping",
+      handleUserTyping
+    );
 
     return () => {
+      clearTypingFallback();
       socket.off(
         "userStatusChange",
         handleUserStatus
@@ -518,6 +582,10 @@ const ChatWindow = () => {
         "newMessage",
         handleNewMessage
       );
+      socket.off(
+        "userTyping",
+        handleUserTyping
+      );
     };
   }, [selectedChatId, setSelectedChat]);
 
@@ -531,10 +599,12 @@ const ChatWindow = () => {
     );
   }
 
-  const statusText = formatLastSeen(
-    otherUser?.isOnline,
-    otherUser?.lastSeen
-  );
+  const statusText = isOtherUserTyping
+    ? "typing..."
+    : formatLastSeen(
+        otherUser?.isOnline,
+        otherUser?.lastSeen
+      );
 
   return (
     <div className="chat-window">
@@ -565,9 +635,11 @@ const ChatWindow = () => {
 
             <div
               className={`chat-header-status ${
-                otherUser?.isOnline
-                  ? "online"
-                  : ""
+                isOtherUserTyping
+                  ? "typing"
+                  : otherUser?.isOnline
+                    ? "online"
+                    : ""
               }`}
             >
               {statusText}
@@ -665,6 +737,8 @@ const ChatWindow = () => {
             </div>
           );
         })}
+
+        {isOtherUserTyping && <TypingIndicator />}
       </div>
 
       <MessageInput
