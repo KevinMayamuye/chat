@@ -657,27 +657,61 @@ export const getMessages = async (req, res) => {
       });
     }
 
-    await markChatMessagesAsRead(
-      req.params.chatId,
-      req.user._id
+    const { before, after } = req.query;
+    const limit = Math.min(
+      Math.max(parseInt(req.query.limit, 10) || 50, 1),
+      100
     );
 
-    notifyMessagesRead(
-      chat,
-      req.user._id
+    if (before && after) {
+      return res.status(400).json({
+        message: "Use either before or after, not both",
+      });
+    }
+
+    const filter = { chat: req.params.chatId };
+
+    if (before) {
+      const beforeMessage = await Message.findById(before);
+
+      if (!beforeMessage) {
+        return res.status(400).json({
+          message: "Invalid before cursor",
+        });
+      }
+
+      filter.createdAt = { $lt: beforeMessage.createdAt };
+    } else if (after) {
+      const afterMessage = await Message.findById(after);
+
+      if (!afterMessage) {
+        return res.status(400).json({
+          message: "Invalid after cursor",
+        });
+      }
+
+      filter.createdAt = { $gt: afterMessage.createdAt };
+    }
+
+    const sortOrder = after ? 1 : -1;
+
+    const rawMessages = await populateMessage(
+      Message.find(filter)
+        .sort({ createdAt: sortOrder })
+        .limit(limit + 1)
     );
 
-    const messages = await populateMessage(
-      Message.find({
-        chat: req.params.chatId
-      }).sort({
-        createdAt: 1
-      })
-    );
+    const hasMore = rawMessages.length > limit;
+    const page = hasMore
+      ? rawMessages.slice(0, limit)
+      : rawMessages;
 
-    res.status(200).json(
-      messages
-    );
+    const messages = after ? page : page.reverse();
+
+    res.status(200).json({
+      messages,
+      hasMore,
+    });
 
   } catch (error) {
     return serverError(res, error);

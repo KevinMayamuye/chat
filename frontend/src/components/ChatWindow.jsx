@@ -4,7 +4,6 @@ import { useAuth } from "../context/AuthContext";
 import { useChat } from "../context/ChatContext";
 
 import {
-  getMessages,
   markChatAsRead,
   markMessageDelivered,
 } from "../services/messageService";
@@ -39,15 +38,34 @@ import ContactProfileModal from "./ContactProfileModal";
 import GroupInfoModal from "./GroupInfoModal";
 import TypingIndicator from "./TypingIndicator";
 
-const ChatWindow = () => {
+export default function ChatWindow() {
   const { user } = useAuth();
 
-  const { selectedChat, setSelectedChat } =
-    useChat();
+  const {
+    selectedChat,
+    setSelectedChat,
+    messageCache,
+    loadMessages,
+    loadMoreMessages,
+    upsertMessage,
+    updateMessageInCache,
+    removeMessageFromCache,
+    setMessagesForChat,
+    updateChatPreview,
+  } = useChat();
 
   const selectedChatId = selectedChat?._id;
 
-  const [messages, setMessages] = useState([]);
+  const cacheEntry = selectedChatId
+    ? messageCache[selectedChatId]
+    : null;
+
+  const messages = cacheEntry?.messages ?? [];
+  const hasMore = cacheEntry?.hasMore ?? true;
+  const isLoading = cacheEntry?.isLoading ?? false;
+  const isLoadingMore =
+    cacheEntry?.isLoadingMore ?? false;
+
   const [otherUser, setOtherUser] =
     useState(null);
   const [showContactProfile, setShowContactProfile] =
@@ -70,7 +88,10 @@ const ChatWindow = () => {
   const replyingToRef = useRef(replyingTo);
   const editingMessageRef = useRef(editingMessage);
   const otherUserIdRef = useRef(otherUser?._id);
-  const userIdRef = useRef(user._id);
+  const userIdRef = useRef(user?._id);
+  const shouldScrollToBottomRef = useRef(true);
+  const loadingMoreRef = useRef(false);
+  const scrollLoadLockRef = useRef(false);
 
   selectedChatIdRef.current = selectedChatId;
   selectedChatRef.current = selectedChat;
@@ -78,6 +99,7 @@ const ChatWindow = () => {
   editingMessageRef.current = editingMessage;
   otherUserIdRef.current = otherUser?._id;
   userIdRef.current = user._id;
+  loadingMoreRef.current = isLoadingMore;
 
   const scrollToBottom = () => {
     const container = messagesContainerRef.current;
@@ -112,14 +134,12 @@ const ChatWindow = () => {
   };
 
   const handleReactionUpdate = (updatedMessage) => {
-    setMessages((prev) =>
-      prev.map((msg) =>
-        msg._id === updatedMessage._id
-          ? updatedMessage
-          : msg
-      )
-    );
+    if (!selectedChatId) return;
 
+    upsertMessage(
+      selectedChatId,
+      updatedMessage
+    );
     updateLastMessageIfNeeded(updatedMessage);
   };
 
@@ -135,13 +155,7 @@ const ChatWindow = () => {
       return;
     }
 
-    setMessages((prev) =>
-      prev.filter(
-        (msg) =>
-          msg._id?.toString() !==
-          messageId?.toString()
-      )
-    );
+    removeMessageFromCache(chatId, messageId);
 
     setSelectedChat((prev) => {
       if (!prev) return prev;
@@ -188,18 +202,48 @@ const ChatWindow = () => {
     setEditingMessage(message);
   };
 
-  const fetchMessages = async (chatId) => {
-    try {
-      const data = await getMessages(chatId);
+  const handleScroll = () => {
+    const container = messagesContainerRef.current;
 
-      setMessages(data);
-    } catch (error) {
-      console.error(error);
+    if (
+      !container ||
+      !selectedChatId ||
+      loadingMoreRef.current ||
+      scrollLoadLockRef.current ||
+      !hasMore
+    ) {
+      return;
     }
+
+    if (container.scrollTop >= 80) return;
+
+    scrollLoadLockRef.current = true;
+    shouldScrollToBottomRef.current = false;
+
+    const prevScrollHeight =
+      container.scrollHeight;
+
+    loadMoreMessages(selectedChatId)
+      .then((count) => {
+        if (count > 0) {
+          requestAnimationFrame(() => {
+            const el = messagesContainerRef.current;
+
+            if (!el) return;
+
+            el.scrollTop =
+              el.scrollHeight - prevScrollHeight;
+          });
+        }
+      })
+      .finally(() => {
+        scrollLoadLockRef.current = false;
+      });
   };
 
   useEffect(() => {
     if (
+      !shouldScrollToBottomRef.current ||
       !selectedChat ||
       (messages.length === 0 && !isOtherUserTyping)
     ) {
@@ -211,7 +255,7 @@ const ChatWindow = () => {
     });
 
     return () => cancelAnimationFrame(frameId);
-  }, [messages, selectedChatId, isOtherUserTyping]);
+  }, [messages, selectedChatId, isOtherUserTyping, selectedChat]);
 
   useEffect(() => {
     setIsOtherUserTyping(false);
@@ -243,14 +287,14 @@ const ChatWindow = () => {
   }, [selectedChatId, user._id, selectedChat?.isGroup]);
 
   useEffect(() => {
-    setMessages([]);
     setReplyingTo(null);
     setEditingMessage(null);
+    shouldScrollToBottomRef.current = true;
 
     if (!selectedChatId) return;
 
-    fetchMessages(selectedChatId);
-  }, [selectedChatId]);
+    loadMessages(selectedChatId);
+  }, [selectedChatId, loadMessages]);
 
   useEffect(() => {
     const handleUserStatus = ({
@@ -312,7 +356,7 @@ const ChatWindow = () => {
         return;
       }
 
-      setMessages((prev) =>
+      setMessagesForChat(chatId, (prev) =>
         prev.map((message) => {
           if (
             message.sender?._id?.toString() !==
@@ -353,22 +397,15 @@ const ChatWindow = () => {
         return;
       }
 
-      setMessages((prev) =>
-        prev.map((message) => {
-          if (
-            message._id?.toString() !==
-            messageId?.toString()
-          ) {
-            return message;
-          }
-
-          return {
-            ...message,
-            deliveredTo: [
-              ...(message.deliveredTo || []),
-              deliveredTo,
-            ],
-          };
+      updateMessageInCache(
+        chatId,
+        messageId,
+        (message) => ({
+          ...message,
+          deliveredTo: [
+            ...(message.deliveredTo || []),
+            deliveredTo,
+          ],
         })
       );
     };
@@ -384,13 +421,7 @@ const ChatWindow = () => {
         return;
       }
 
-      setMessages((prev) =>
-        prev.map((msg) =>
-          msg._id === message._id
-            ? message
-            : msg
-        )
-      );
+      upsertMessage(messageChatId, message);
 
       setSelectedChat((prev) => {
         if (!prev) return prev;
@@ -414,49 +445,7 @@ const ChatWindow = () => {
     };
 
     const handleMessageDeletedEvent = (payload) => {
-      const {
-        messageId,
-        chatId,
-        lastMessage,
-      } = payload;
-
-      if (
-        chatId?.toString() !==
-        selectedChatIdRef.current?.toString()
-      ) {
-        return;
-      }
-
-      setMessages((prev) =>
-        prev.filter(
-          (msg) =>
-            msg._id?.toString() !==
-            messageId?.toString()
-        )
-      );
-
-      setSelectedChat((prev) => {
-        if (!prev) return prev;
-
-        return {
-          ...prev,
-          lastMessage: lastMessage ?? null,
-        };
-      });
-
-      if (
-        replyingToRef.current?._id?.toString() ===
-        messageId?.toString()
-      ) {
-        setReplyingTo(null);
-      }
-
-      if (
-        editingMessageRef.current?._id?.toString() ===
-        messageId?.toString()
-      ) {
-        setEditingMessage(null);
-      }
+      handleMessageDeleted(payload);
     };
 
     const clearTypingFallback = () => {
@@ -468,7 +457,7 @@ const ChatWindow = () => {
 
     const handleUserTyping = ({
       chatId,
-      userId,
+      userId: typingUserId,
       isTyping,
     }) => {
       if (
@@ -479,7 +468,7 @@ const ChatWindow = () => {
       }
 
       if (
-        userId?.toString() ===
+        typingUserId?.toString() ===
         userIdRef.current?.toString()
       ) {
         return;
@@ -489,7 +478,7 @@ const ChatWindow = () => {
       const isParticipant = chat?.participants?.some(
         (p) =>
           p._id?.toString() ===
-          userId?.toString()
+          typingUserId?.toString()
       );
 
       if (!isParticipant) {
@@ -498,7 +487,7 @@ const ChatWindow = () => {
 
       if (
         !isGroupChat(chat) &&
-        userId?.toString() !==
+        typingUserId?.toString() !==
           otherUserIdRef.current?.toString()
       ) {
         return;
@@ -509,7 +498,7 @@ const ChatWindow = () => {
       if (isTyping) {
         const typingUser = getParticipantById(
           chat,
-          userId
+          typingUserId
         );
 
         setTypingUserName(
@@ -573,7 +562,9 @@ const ChatWindow = () => {
         }
       }
 
-      setMessages((prev) => {
+      shouldScrollToBottomRef.current = true;
+
+      setMessagesForChat(messageChatId, (prev) => {
         const exists = prev.some(
           (msg) => msg._id === message._id
         );
@@ -646,7 +637,27 @@ const ChatWindow = () => {
         handleUserTyping
       );
     };
-  }, [selectedChatId, setSelectedChat]);
+  }, [
+    selectedChatId,
+    setSelectedChat,
+    upsertMessage,
+    updateMessageInCache,
+    setMessagesForChat,
+  ]);
+
+  const handleMessageSent = (message) => {
+    updateChatPreview(message, {
+      isIncoming: false,
+      isChatOpen: true,
+    });
+  };
+
+  const setMessages = (updater) => {
+    if (!selectedChatId) return;
+
+    shouldScrollToBottomRef.current = true;
+    setMessagesForChat(selectedChatId, updater);
+  };
 
   if (!selectedChat) {
     return (
@@ -733,7 +744,20 @@ const ChatWindow = () => {
       <div
         className="messages"
         ref={messagesContainerRef}
+        onScroll={handleScroll}
       >
+        {isLoadingMore && (
+          <div className="messages-loading-more">
+            Loading older messages...
+          </div>
+        )}
+
+        {isLoading && messages.length === 0 && (
+          <div className="messages-loading">
+            Loading messages...
+          </div>
+        )}
+
         {messages.map((message) => {
           const isSent =
             message.sender?._id?.toString() ===
@@ -851,6 +875,7 @@ const ChatWindow = () => {
         onMessageUpdated={
           updateLastMessageIfNeeded
         }
+        onMessageSent={handleMessageSent}
       />
 
       <ContactProfileModal
@@ -867,6 +892,4 @@ const ChatWindow = () => {
       />
     </div>
   );
-};
-
-export default ChatWindow;
+}

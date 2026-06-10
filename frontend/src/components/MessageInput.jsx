@@ -42,6 +42,7 @@ const MessageInput = ({
   editingMessage,
   onCancelEdit,
   onMessageUpdated,
+  onMessageSent,
 }) => {
   const { user } = useAuth();
   const [content, setContent] = useState("");
@@ -245,6 +246,8 @@ const MessageInput = ({
           msg._id === tempId ? message : msg
         )
       );
+
+      onMessageSent?.(message);
     } catch (error) {
       setMessages((prev) =>
         prev.filter((msg) => msg._id !== tempId)
@@ -360,6 +363,8 @@ const MessageInput = ({
           msg._id === tempId ? message : msg
         )
       );
+
+      onMessageSent?.(message);
     } catch (error) {
       setMessages((prev) =>
         prev.filter((msg) => msg._id !== tempId)

@@ -1,16 +1,11 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { useAuth } from "../context/AuthContext";
 import { useChat } from "../context/ChatContext";
 
-import { getChats, createChat } from "../services/chatService";
-import { markMessageDelivered } from "../services/messageService";
+import { createChat } from "../services/chatService";
 
-import {
-  getMessageStatus,
-  updateParticipantStatus,
-} from "../utils/messageStatus";
 import { getMessagePreviewText } from "../utils/messagePreview";
 import {
   getChatTitle,
@@ -21,7 +16,9 @@ import {
   isGroupChat,
 } from "../utils/chatDisplay";
 
-import { socket } from "../socket/socket";
+import {
+  getMessageStatus,
+} from "../utils/messageStatus";
 
 import Avatar from "./Avatar";
 import MessageTicks from "./MessageTicks";
@@ -31,345 +28,25 @@ import CreateGroupModal from "./CreateGroupModal";
 const ChatSidebar = () => {
   const { user, logout } = useAuth();
 
-  const { selectedChat, setSelectedChat } =
-    useChat();
+  const {
+    selectedChat,
+    setSelectedChat,
+    chats,
+    addChat,
+    markChatUnreadCleared,
+    clearCache,
+  } = useChat();
 
   const navigate = useNavigate();
 
-  const [chats, setChats] = useState([]);
   const [showNewChat, setShowNewChat] =
     useState(false);
   const [showNewGroup, setShowNewGroup] =
     useState(false);
 
-  useEffect(() => {
-    if (!user) return;
-
-    fetchChats();
-  }, [user]);
-
-  useEffect(() => {
-    const handleUserStatus = ({
-      userId,
-      isOnline,
-      lastSeen,
-    }) => {
-      setChats((prev) =>
-        prev.map((chat) => ({
-          ...chat,
-          participants:
-            updateParticipantStatus(
-              chat.participants,
-              userId,
-              isOnline,
-              lastSeen
-            ),
-        }))
-      );
-    };
-
-    const handleNewMessage = async (message) => {
-      const chatId =
-        message.chat?._id ?? message.chat;
-
-      const senderId =
-        message.sender?._id ??
-        message.sender;
-
-      const isIncoming =
-        senderId?.toString() !==
-        user._id?.toString();
-
-      const isChatOpen =
-        selectedChat?._id?.toString() ===
-        chatId?.toString();
-
-      if (isChatOpen) {
-        setSelectedChat((prev) => {
-          if (
-            !prev ||
-            prev._id?.toString() !==
-              chatId?.toString()
-          ) {
-            return prev;
-          }
-
-          return {
-            ...prev,
-            lastMessage: message,
-            updatedAt: message.createdAt,
-          };
-        });
-      }
-
-      if (isIncoming && !isChatOpen) {
-        markMessageDelivered(message._id).catch(
-          console.error
-        );
-      }
-
-      let shouldRefetch = false;
-
-      setChats((prev) => {
-        if (
-          !prev.some(
-            (chat) =>
-              chat._id?.toString() ===
-              chatId?.toString()
-          )
-        ) {
-          shouldRefetch = true;
-          return prev;
-        }
-
-        const updated = prev.map((chat) => {
-          if (
-            chat._id?.toString() !==
-            chatId?.toString()
-          ) {
-            return chat;
-          }
-
-          return {
-            ...chat,
-            lastMessage: message,
-            updatedAt: message.createdAt,
-            unreadCount:
-              isIncoming && !isChatOpen
-                ? (chat.unreadCount || 0) + 1
-                : isChatOpen
-                  ? 0
-                  : chat.unreadCount || 0,
-          };
-        });
-
-        return updated.sort(
-          (a, b) =>
-            new Date(b.updatedAt) -
-            new Date(a.updatedAt)
-        );
-      });
-
-      if (shouldRefetch) {
-        await fetchChats();
-      }
-    };
-
-    const handleMessagesRead = ({
-      chatId,
-      readBy,
-    }) => {
-      setChats((prev) =>
-        prev.map((chat) => {
-          if (
-            chat._id?.toString() !==
-            chatId?.toString() ||
-            !chat.lastMessage
-          ) {
-            return chat;
-          }
-
-          const senderId =
-            chat.lastMessage.sender._id ??
-            chat.lastMessage.sender;
-
-          if (
-            senderId?.toString() !==
-            user._id?.toString()
-          ) {
-            return chat;
-          }
-
-          return {
-            ...chat,
-            lastMessage: {
-              ...chat.lastMessage,
-              readBy: [
-                ...(chat.lastMessage.readBy ||
-                  []),
-                readBy,
-              ],
-            },
-          };
-        })
-      );
-    };
-
-    const handleMessageDelivered = ({
-      messageId,
-      chatId,
-      deliveredTo,
-    }) => {
-      setChats((prev) =>
-        prev.map((chat) => {
-          if (
-            chat._id?.toString() !==
-              chatId?.toString() ||
-            !chat.lastMessage ||
-            chat.lastMessage._id?.toString() !==
-              messageId?.toString()
-          ) {
-            return chat;
-          }
-
-          return {
-            ...chat,
-            lastMessage: {
-              ...chat.lastMessage,
-              deliveredTo: [
-                ...(chat.lastMessage
-                  .deliveredTo || []),
-                deliveredTo,
-              ],
-            },
-          };
-        })
-      );
-    };
-
-    const handleMessageUpdated = (message) => {
-      const chatId =
-        message.chat?._id ?? message.chat;
-
-      setChats((prev) =>
-        prev.map((chat) => {
-          if (
-            chat._id?.toString() !==
-            chatId?.toString()
-          ) {
-            return chat;
-          }
-
-          const lastId =
-            chat.lastMessage?._id ??
-            chat.lastMessage;
-
-          if (
-            lastId?.toString() !==
-            message._id?.toString()
-          ) {
-            return chat;
-          }
-
-          return {
-            ...chat,
-            lastMessage: message,
-          };
-        })
-      );
-    };
-
-    const handleMessageDeleted = ({
-      messageId,
-      chatId,
-      lastMessage,
-    }) => {
-      setChats((prev) =>
-        prev.map((chat) => {
-          if (
-            chat._id?.toString() !==
-            chatId?.toString()
-          ) {
-            return chat;
-          }
-
-          const lastId =
-            chat.lastMessage?._id ??
-            chat.lastMessage;
-
-          if (
-            lastId?.toString() !==
-            messageId?.toString()
-          ) {
-            return chat;
-          }
-
-          return {
-            ...chat,
-            lastMessage: lastMessage ?? null,
-            updatedAt:
-              lastMessage?.createdAt ||
-              chat.updatedAt,
-          };
-        }).sort(
-          (a, b) =>
-            new Date(b.updatedAt) -
-            new Date(a.updatedAt)
-        )
-      );
-    };
-
-    socket.on(
-      "userStatusChange",
-      handleUserStatus
-    );
-    socket.on("newMessage", handleNewMessage);
-    socket.on(
-      "messagesRead",
-      handleMessagesRead
-    );
-    socket.on(
-      "messageDelivered",
-      handleMessageDelivered
-    );
-    socket.on(
-      "messageUpdated",
-      handleMessageUpdated
-    );
-    socket.on(
-      "messageDeleted",
-      handleMessageDeleted
-    );
-
-    return () => {
-      socket.off(
-        "userStatusChange",
-        handleUserStatus
-      );
-      socket.off(
-        "newMessage",
-        handleNewMessage
-      );
-      socket.off(
-        "messagesRead",
-        handleMessagesRead
-      );
-      socket.off(
-        "messageDelivered",
-        handleMessageDelivered
-      );
-      socket.off(
-        "messageUpdated",
-        handleMessageUpdated
-      );
-      socket.off(
-        "messageDeleted",
-        handleMessageDeleted
-      );
-    };
-  }, [selectedChat, user._id]);
-
-  const fetchChats = async () => {
-    try {
-      const data = await getChats();
-
-      setChats(data);
-    } catch (error) {
-      console.error(error);
-    }
-  };
-
   const handleChatClick = (chat) => {
     setSelectedChat(chat);
-
-    setChats((prev) =>
-      prev.map((c) =>
-        c._id?.toString() ===
-        chat._id?.toString()
-          ? { ...c, unreadCount: 0 }
-          : c
-      )
-    );
+    markChatUnreadCleared(chat._id);
   };
 
   const handleSelectUser = async (foundUser) => {
@@ -378,25 +55,7 @@ const ChatSidebar = () => {
         foundUser._id
       );
 
-      setChats((prev) => {
-        const exists = prev.some(
-          (c) =>
-            c._id?.toString() ===
-            chat._id?.toString()
-        );
-
-        if (exists) {
-          return prev.map((c) =>
-            c._id?.toString() ===
-            chat._id?.toString()
-              ? chat
-              : c
-          );
-        }
-
-        return [chat, ...prev];
-      });
-
+      addChat(chat);
       setSelectedChat(chat);
     } catch (error) {
       alert(
@@ -407,13 +66,13 @@ const ChatSidebar = () => {
   };
 
   const handleGroupCreated = (chat) => {
-    setChats((prev) => [chat, ...prev]);
+    addChat(chat);
     setSelectedChat(chat);
   };
 
   const handleLogout = () => {
+    clearCache();
     logout();
-
     navigate("/");
   };
 

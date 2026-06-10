@@ -1,8 +1,18 @@
 import api from "./api.js";
 
-export const getMessages = async (chatId) => {
+export const getMessages = async (
+  chatId,
+  { limit, before, after } = {}
+) => {
+  const params = {};
+
+  if (limit != null) params.limit = limit;
+  if (before) params.before = before;
+  if (after) params.after = after;
+
   const response = await api.get(
-    `/messages/${chatId}`
+    `/messages/${chatId}`,
+    { params }
   );
 
   return response.data;

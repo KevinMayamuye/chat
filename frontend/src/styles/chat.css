@@ -570,6 +570,18 @@
   gap: 10px;
 }
 
+.messages-loading,
+.messages-loading-more {
+  align-self: center;
+  padding: 8px 12px;
+  font-size: 0.85rem;
+  color: #666;
+}
+
+.messages-loading-more {
+  margin-bottom: 4px;
+}
+
 /* ======================
    MESSAGES
 ====================== */
