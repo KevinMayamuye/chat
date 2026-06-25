@@ -1,0 +1,8 @@
+{
+  "appId": "com.quickerchat.app",
+  "appName": "quickerchat",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https"
+  }
+}

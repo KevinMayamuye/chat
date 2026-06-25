@@ -1,6 +1,16 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
+import {
+  IonPage,
+  IonContent,
+  IonList,
+  IonItem,
+  IonInput,
+  IonButton,
+  IonText,
+} from "@ionic/react";
+
 import { useAuth } from "../context/AuthContext";
 import { loginUser } from "../services/authService";
 
@@ -22,10 +32,10 @@ const Login = () => {
     }
   }, [user, navigate]);
 
-  const handleChange = (e) => {
+  const handleChange = (field) => (event) => {
     setFormData({
       ...formData,
-      [e.target.name]: e.target.value,
+      [field]: event.detail.value ?? "",
     });
   };
 
@@ -36,7 +46,6 @@ const Login = () => {
       const data = await loginUser(formData);
 
       login(data);
-
     } catch (error) {
       alert(
         error.response?.data?.message ||
@@ -46,43 +55,61 @@ const Login = () => {
   };
 
   return (
-    <div className="auth-container">
-      <form
-        className="auth-form"
-        onSubmit={handleSubmit}
+    <IonPage>
+      <IonContent
+        fullscreen
+        className="auth-content ion-padding"
       >
-        <h2>Login</h2>
+        <form
+          className="auth-form"
+          onSubmit={handleSubmit}
+        >
+          <h2>Login</h2>
 
-        <input
-          type="email"
-          name="email"
-          placeholder="Email"
-          value={formData.email}
-          onChange={handleChange}
-          required
-        />
+          <IonList lines="full">
+            <IonItem>
+              <IonInput
+                type="email"
+                label="Email"
+                labelPlacement="stacked"
+                placeholder="Email"
+                value={formData.email}
+                onIonInput={handleChange("email")}
+                required
+              />
+            </IonItem>
 
-        <input
-          type="password"
-          name="password"
-          placeholder="Password"
-          value={formData.password}
-          onChange={handleChange}
-          required
-        />
+            <IonItem>
+              <IonInput
+                type="password"
+                label="Password"
+                labelPlacement="stacked"
+                placeholder="Password"
+                value={formData.password}
+                onIonInput={handleChange("password")}
+                required
+              />
+            </IonItem>
+          </IonList>
 
-        <button type="submit">
-          Login
-        </button>
+          <IonButton
+            expand="block"
+            type="submit"
+          >
+            Login
+          </IonButton>
 
-        <p>
-          Don't have an account?{" "}
-          <Link to="/register">
-            Register
-          </Link>
-        </p>
-      </form>
-    </div>
+          <IonText className="auth-link">
+            <p>
+              Don't have an account?{" "}
+              <Link to="/register">
+                Register
+              </Link>
+            </p>
+          </IonText>
+        </form>
+      </IonContent>
+    </IonPage>
   );
 };
 

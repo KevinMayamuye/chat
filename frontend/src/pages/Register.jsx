@@ -1,6 +1,16 @@
 import { useRef, useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
+import {
+  IonPage,
+  IonContent,
+  IonList,
+  IonItem,
+  IonInput,
+  IonButton,
+  IonText,
+} from "@ionic/react";
+
 import Avatar from "../components/Avatar";
 
 import { useAuth } from "../context/AuthContext";
@@ -32,10 +42,10 @@ const Register = () => {
     }
   }, [user, navigate]);
 
-  const handleChange = (e) => {
+  const handleChange = (field) => (event) => {
     setFormData({
       ...formData,
-      [e.target.name]: e.target.value,
+      [field]: event.detail.value ?? "",
     });
   };
 
@@ -77,84 +87,106 @@ const Register = () => {
   };
 
   return (
-    <div className="auth-container">
-      <form
-        className="auth-form"
-        onSubmit={handleSubmit}
+    <IonPage>
+      <IonContent
+        fullscreen
+        className="auth-content ion-padding"
       >
-        <h2>Register</h2>
+        <form
+          className="auth-form"
+          onSubmit={handleSubmit}
+        >
+          <h2>Register</h2>
 
-        <div className="profile-avatar-section register-avatar-section">
-          <Avatar
-            user={{
-              username: formData.username || "?",
-              profilePicture: avatarPreview,
-            }}
-            size="lg"
-          />
+          <div className="profile-avatar-section register-avatar-section">
+            <Avatar
+              user={{
+                username: formData.username || "?",
+                profilePicture: avatarPreview,
+              }}
+              size="lg"
+            />
 
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            className="profile-file-input"
-            onChange={handleAvatarChange}
-          />
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="profile-file-input"
+              onChange={handleAvatarChange}
+            />
 
-          <button
-            type="button"
-            className="profile-btn"
-            onClick={() =>
-              fileInputRef.current?.click()
-            }
+            <IonButton
+              fill="outline"
+              size="small"
+              type="button"
+              onClick={() =>
+                fileInputRef.current?.click()
+              }
+            >
+              {avatarPreview
+                ? "Change photo"
+                : "Add profile photo (optional)"}
+            </IonButton>
+          </div>
+
+          <IonList lines="full">
+            <IonItem>
+              <IonInput
+                type="text"
+                label="Username"
+                labelPlacement="stacked"
+                placeholder="Username"
+                value={formData.username}
+                onIonInput={handleChange("username")}
+                minlength={2}
+                required
+              />
+            </IonItem>
+
+            <IonItem>
+              <IonInput
+                type="email"
+                label="Email"
+                labelPlacement="stacked"
+                placeholder="Email"
+                value={formData.email}
+                onIonInput={handleChange("email")}
+                required
+              />
+            </IonItem>
+
+            <IonItem>
+              <IonInput
+                type="password"
+                label="Password"
+                labelPlacement="stacked"
+                placeholder="Password"
+                value={formData.password}
+                onIonInput={handleChange("password")}
+                minlength={6}
+                required
+              />
+            </IonItem>
+          </IonList>
+
+          <IonButton
+            expand="block"
+            type="submit"
           >
-            {avatarPreview
-              ? "Change photo"
-              : "Add profile photo (optional)"}
-          </button>
-        </div>
+            Register
+          </IonButton>
 
-        <input
-          type="text"
-          name="username"
-          placeholder="Username"
-          value={formData.username}
-          onChange={handleChange}
-          minLength={2}
-          required
-        />
-
-        <input
-          type="email"
-          name="email"
-          placeholder="Email"
-          value={formData.email}
-          onChange={handleChange}
-          required
-        />
-
-        <input
-          type="password"
-          name="password"
-          placeholder="Password"
-          value={formData.password}
-          onChange={handleChange}
-          minLength={6}
-          required
-        />
-
-        <button type="submit">
-          Register
-        </button>
-
-        <p>
-          Already have an account?{" "}
-          <Link to="/">
-            Login
-          </Link>
-        </p>
-      </form>
-    </div>
+          <IonText className="auth-link">
+            <p>
+              Already have an account?{" "}
+              <Link to="/">
+                Login
+              </Link>
+            </p>
+          </IonText>
+        </form>
+      </IonContent>
+    </IonPage>
   );
 };
 

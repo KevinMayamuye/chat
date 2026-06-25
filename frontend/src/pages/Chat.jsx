@@ -1,4 +1,7 @@
 import { useEffect } from "react";
+
+import { IonPage, IonContent } from "@ionic/react";
+
 import "../styles/chat.css";
 
 import ChatSidebar from "../components/ChatSidebar";
@@ -38,15 +41,25 @@ const Chat = () => {
   }, [user?.token]);
 
   return (
-    <div
-      className={`chat-container ${
-        selectedChat ? "show-conversation" : "show-list"
-      }`}
-    >
-      <ChatSidebar />
+    <IonPage>
+      <IonContent
+        fullscreen
+        scrollY={false}
+        className="chat-page-content"
+      >
+        <div
+          className={`chat-container ${
+            selectedChat
+              ? "show-conversation"
+              : "show-list"
+          }`}
+        >
+          <ChatSidebar />
 
-      <ChatWindow />
-    </div>
+          <ChatWindow />
+        </div>
+      </IonContent>
+    </IonPage>
   );
 };
 

@@ -1,5 +1,17 @@
 import { useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
+
+import {
+  IonPage,
+  IonHeader,
+  IonToolbar,
+  IonTitle,
+  IonButtons,
+  IonBackButton,
+  IonContent,
+  IonButton,
+  IonText,
+} from "@ionic/react";
 
 import Avatar from "../components/Avatar";
 
@@ -70,75 +82,90 @@ const Profile = () => {
   };
 
   return (
-    <div className="auth-container profile-page">
-      <div className="auth-form profile-form">
-        <h2>My Profile</h2>
+    <IonPage>
+      <IonHeader>
+        <IonToolbar>
+          <IonButtons slot="start">
+            <IonBackButton
+              defaultHref="/chat"
+              text="Chats"
+            />
+          </IonButtons>
+          <IonTitle>My Profile</IonTitle>
+        </IonToolbar>
+      </IonHeader>
 
-        <div className="profile-avatar-section">
-          <Avatar user={user} size="lg" />
+      <IonContent
+        fullscreen
+        className="auth-content ion-padding"
+      >
+        <div className="auth-form profile-form">
+          <div className="profile-avatar-section">
+            <Avatar user={user} size="lg" />
 
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            className="profile-file-input"
-            onChange={handleFileChange}
-          />
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="profile-file-input"
+              onChange={handleFileChange}
+            />
 
-          <div className="profile-avatar-actions">
-            <button
-              type="button"
-              className="profile-btn"
-              disabled={uploading}
-              onClick={() =>
-                fileInputRef.current?.click()
-              }
-            >
-              {uploading
-                ? "Uploading..."
-                : "Change photo"}
-            </button>
-
-            {user?.profilePicture && (
-              <button
-                type="button"
-                className="profile-btn profile-btn-secondary"
+            <div className="profile-avatar-actions">
+              <IonButton
+                expand="block"
                 disabled={uploading}
-                onClick={handleRemovePhoto}
+                onClick={() =>
+                  fileInputRef.current?.click()
+                }
               >
-                Remove photo
-              </button>
-            )}
+                {uploading
+                  ? "Uploading..."
+                  : "Change photo"}
+              </IonButton>
+
+              {user?.profilePicture && (
+                <IonButton
+                  expand="block"
+                  fill="outline"
+                  color="medium"
+                  disabled={uploading}
+                  onClick={handleRemovePhoto}
+                >
+                  Remove photo
+                </IonButton>
+              )}
+            </div>
           </div>
+
+          <div className="profile-field">
+            <label>Username</label>
+            <p>{user?.username}</p>
+          </div>
+
+          <div className="profile-field">
+            <label>Email</label>
+            <p>{user?.email}</p>
+          </div>
+
+          {error && (
+            <IonText color="danger">
+              <p className="profile-error">
+                {error}
+              </p>
+            </IonText>
+          )}
+
+          <IonButton
+            expand="block"
+            color="medium"
+            onClick={() => navigate("/chat")}
+          >
+            Back to chats
+          </IonButton>
         </div>
-
-        <div className="profile-field">
-          <label>Username</label>
-          <p>{user?.username}</p>
-        </div>
-
-        <div className="profile-field">
-          <label>Email</label>
-          <p>{user?.email}</p>
-        </div>
-
-        {error && (
-          <p className="profile-error">{error}</p>
-        )}
-
-        <button
-          type="button"
-          className="profile-back-btn"
-          onClick={() => navigate("/chat")}
-        >
-          Back to chats
-        </button>
-
-        <p className="profile-link-row">
-          <Link to="/chat">Return to chat</Link>
-        </p>
-      </div>
-    </div>
+      </IonContent>
+    </IonPage>
   );
 };
 
